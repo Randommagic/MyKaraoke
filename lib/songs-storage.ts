@@ -1,0 +1,311 @@
+import * as FileSystem from "expo-file-system/legacy";
+import { Platform } from "react-native";
+
+import { logDebug } from "@/lib/debug-log-buffer";
+
+/** 웹(localStorage)과 예전 AsyncStorage 키와 동일하게 두어 이전 데이터 호환 */
+const WEB_STORAGE_KEY = "@mykaraoke/songs/v1";
+const NATIVE_FILE_NAME = "mykaraoke-songs.json";
+
+function getNativeSongsUri(): string | null {
+  const base = FileSystem.documentDirectory;
+  if (!base) return null;
+  return `${base}${NATIVE_FILE_NAME}`;
+}
+
+export type SongGenderKey = "male" | "female" | "unset";
+
+/** 곡 연습·완창 준비도 (JSON 필드 `readiness`) */
+export type SongReadiness = "none" | "can_full" | "will_try" | "need_practice";
+
+export const SONG_READINESS_OPTIONS: { value: SongReadiness; label: string }[] = [
+  { value: "none", label: "속성없음" },
+  { value: "can_full", label: "완창가능" },
+  { value: "will_try", label: "시도예정" },
+  { value: "need_practice", label: "연습필요" },
+];
+
+export type Song = {
+  id: string;
+  title: string;
+  /** 가수 */
+  artist: string;
+  /** 태진 노래방 곡 번호 (숫자만, 최대 6자리) */
+  tjNumber: string;
+  /** 금영 노래방 곡 번호 (숫자만, 최대 6자리) */
+  kyNumber: string;
+  /** 간단 메모 */
+  memo: string;
+  /** YouTube 영상 링크 (https… 또는 youtu.be 등, 비우면 카드에 버튼 없음) */
+  youtubeUrl: string;
+  /** 마지막으로 부른 날짜 `YYYY-MM-DD` (로컬), 없으면 빈 문자열 */
+  lastSungAt: string;
+  /** 연습·완창 준비도 */
+  readiness: SongReadiness;
+  genderKey: SongGenderKey;
+  /** 반음 단위: 양수면 키 업, 음수면 키 다운 */
+  transposeSemitones: number;
+};
+
+export function createSongId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function normalizeGender(value: unknown): SongGenderKey {
+  if (value === "male" || value === "female" || value === "unset") return value;
+  return "unset";
+}
+
+function normalizeReadiness(value: unknown): SongReadiness {
+  if (
+    value === "none" ||
+    value === "can_full" ||
+    value === "will_try" ||
+    value === "need_practice"
+  ) {
+    return value;
+  }
+  return "none";
+}
+
+function readString(row: Record<string, unknown>, key: string): string {
+  const v = row[key];
+  return typeof v === "string" ? v : "";
+}
+
+/** 숫자만 남기고 최대 6자리 */
+function normalizeKaraokeNumber(value: string): string {
+  return value.replace(/\D/g, "").slice(0, 6);
+}
+
+/** `YYYY-MM-DD` 형태만 허용 (앞 10자만 사용해 ISO 문자열도 수용) */
+function normalizeLastSungAt(value: string): string {
+  const s = value.trim().slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  return "";
+}
+
+async function readRawJson(options?: { silent?: boolean }): Promise<string | null> {
+  const silent = options?.silent === true;
+  if (Platform.OS === "web") {
+    try {
+      if (typeof localStorage === "undefined") return null;
+      return localStorage.getItem(WEB_STORAGE_KEY);
+    } catch (e) {
+      if (!silent) {
+        logDebug(`[storage] web localStorage 읽기 실패: ${String(e)}`, "error");
+      }
+      return null;
+    }
+  }
+  const uri = getNativeSongsUri();
+  if (!uri) {
+    if (!silent) {
+      logDebug("[storage] documentDirectory 없음 → songs URI 생성 불가", "error");
+    }
+    return null;
+  }
+  try {
+    const info = await FileSystem.getInfoAsync(uri);
+    if (!info.exists) {
+      if (!silent) {
+        logDebug(`[storage] 파일 없음: ${uri}`, "info");
+      }
+      return null;
+    }
+    const raw = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+    if (!silent) {
+      logDebug(`[storage] 읽기 OK (${raw.length}자) ${uri}`, "info");
+    }
+    return raw;
+  } catch (e) {
+    if (!silent) {
+      logDebug(
+        `[storage] read 실패: ${e instanceof Error ? e.message : String(e)}`,
+        "error",
+      );
+    }
+    return null;
+  }
+}
+
+async function writeRawJson(json: string): Promise<void> {
+  if (Platform.OS === "web") {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(WEB_STORAGE_KEY, json);
+    }
+    logDebug(`[storage] web 저장 OK (${json.length}자)`, "info");
+    return;
+  }
+  const uri = getNativeSongsUri();
+  if (!uri) {
+    const msg = "documentDirectory를 사용할 수 없습니다.";
+    logDebug(`[storage] ${msg}`, "error");
+    throw new Error(msg);
+  }
+  await FileSystem.writeAsStringAsync(uri, json, {
+    encoding: FileSystem.EncodingType.UTF8,
+  });
+  logDebug(`[storage] 쓰기 OK (${json.length}자) ${uri}`, "info");
+}
+
+function parseSongs(raw: string | null): Song[] {
+  if (!raw) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw) as unknown;
+  } catch (e) {
+    logDebug(`[storage] JSON 파싱 실패: ${String(e)}`, "error");
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed
+    .filter((row): row is Record<string, unknown> => {
+      if (!row || typeof row !== "object") return false;
+      const id = (row as { id?: unknown }).id;
+      return id !== undefined && id !== null && String(id).length > 0;
+    })
+    .map((row) => ({
+      id: String((row as { id: unknown }).id),
+      title: typeof row.title === "string" ? row.title : "",
+      artist: readString(row, "artist"),
+      tjNumber: normalizeKaraokeNumber(
+        readString(row, "tjNumber") || readString(row, "taejinNumber"),
+      ),
+      kyNumber: normalizeKaraokeNumber(
+        readString(row, "kyNumber") || readString(row, "kumyoungNumber"),
+      ),
+      memo: readString(row, "memo"),
+      youtubeUrl: readString(row, "youtubeUrl") || readString(row, "youtubeLink"),
+      lastSungAt: normalizeLastSungAt(
+        readString(row, "lastSungAt") || readString(row, "lastSungDate"),
+      ),
+      readiness: normalizeReadiness((row as Record<string, unknown>).readiness),
+      genderKey: normalizeGender(row.genderKey),
+      transposeSemitones:
+        typeof row.transposeSemitones === "number"
+          ? Math.max(-12, Math.min(12, Math.round(row.transposeSemitones)))
+          : 0,
+    }));
+}
+
+export async function loadSongs(): Promise<Song[]> {
+  try {
+    const raw = await readRawJson();
+    const list = parseSongs(raw);
+    logDebug(`[storage] loadSongs 완료: ${list.length}곡`, "info");
+    return list;
+  } catch (e) {
+    logDebug(
+      `[storage] loadSongs 예외: ${e instanceof Error ? e.stack ?? e.message : String(e)}`,
+      "error",
+    );
+    return [];
+  }
+}
+
+export async function saveSongs(songs: Song[]): Promise<void> {
+  const json = JSON.stringify(songs);
+  logDebug(`[storage] saveSongs 시작: ${songs.length}곡, ${json.length} bytes`, "info");
+  try {
+    await writeRawJson(json);
+    logDebug("[storage] saveSongs 완료", "info");
+  } catch (e) {
+    logDebug(
+      `[storage] saveSongs 실패: ${e instanceof Error ? e.stack ?? e.message : String(e)}`,
+      "error",
+    );
+    throw e;
+  }
+}
+
+/** 로그 탭에서 호출: 파일 API·경로 점검 (곡 데이터는 바꾸지 않음) */
+export async function runStorageDiagnostics(): Promise<string[]> {
+  const lines: string[] = [];
+  const line = (s: string) => {
+    lines.push(s);
+    logDebug(`[diag] ${s}`, "info");
+  };
+
+  line(`Platform: ${Platform.OS}`);
+  if (Platform.OS === "web") {
+    try {
+      const has = typeof localStorage !== "undefined";
+      line(`localStorage 사용 가능: ${has}`);
+      if (has) {
+        const raw = localStorage.getItem(WEB_STORAGE_KEY);
+        line(`키 ${WEB_STORAGE_KEY} 길이: ${raw?.length ?? 0}`);
+      }
+    } catch (e) {
+      line(`localStorage 점검 오류: ${String(e)}`);
+    }
+    return lines;
+  }
+
+  line(`documentDirectory: ${String(FileSystem.documentDirectory)}`);
+  const songsUri = getNativeSongsUri();
+  line(`songsUri: ${String(songsUri)}`);
+  if (!songsUri) {
+    line("ERROR: songsUri null");
+    return lines;
+  }
+
+  try {
+    const info = await FileSystem.getInfoAsync(songsUri);
+    line(`곡 파일 exists: ${info.exists}, size: ${"size" in info ? String(info.size) : "?"}`);
+  } catch (e) {
+    line(`getInfoAsync(곡) 오류: ${String(e)}`);
+  }
+
+  const base = FileSystem.documentDirectory;
+  if (base) {
+    const testUri = `${base}mykaraoke-diag.tmp`;
+    try {
+      await FileSystem.writeAsStringAsync(testUri, "diag-ok", {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      const readBack = await FileSystem.readAsStringAsync(testUri, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      line(`임시 파일 쓰기/읽기: ${readBack === "diag-ok" ? "OK" : "FAIL"}`);
+      await FileSystem.deleteAsync(testUri, { idempotent: true });
+    } catch (e) {
+      line(`임시 파일 테스트 실패: ${String(e)}`);
+    }
+  }
+
+  return lines;
+}
+
+/** 디버그 탭: 저장소에 들어 있는 JSON 원문(또는 예쁘게 포맷) 조회만, 로그는 최소화 */
+export async function readRawSongsStorageForDebug(): Promise<{
+  pathLabel: string;
+  raw: string | null;
+  formatted: string;
+}> {
+  const pathLabel =
+    Platform.OS === "web"
+      ? `localStorage → ${WEB_STORAGE_KEY}`
+      : (getNativeSongsUri() ?? "(documentDirectory 없음)");
+  const raw = await readRawJson({ silent: true });
+  if (raw == null || raw === "") {
+    return {
+      pathLabel,
+      raw: null,
+      formatted: "(저장된 내용 없음 — 파일이 없거나 비어 있습니다.)",
+    };
+  }
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    const formatted = JSON.stringify(parsed, null, 2);
+    return { pathLabel, raw, formatted };
+  } catch {
+    return {
+      pathLabel,
+      raw,
+      formatted: `(JSON 파싱 실패, 원문 표시)\n\n${raw}`,
+    };
+  }
+}
