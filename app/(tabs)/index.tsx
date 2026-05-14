@@ -1,16 +1,19 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Dimensions,
+  Easing,
   FlatList,
   KeyboardAvoidingView,
-  Linking,
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
+  Text,
   TextInput,
   View,
 } from "react-native";
@@ -18,9 +21,18 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { YoutubeImportModal } from "@/components/youtube-import-modal";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useThemeColor } from "@/hooks/use-theme-color";
+import { logDebug } from "@/lib/debug-log-buffer";
+import {
+  formatTranspose,
+  formatTransposeForSongCard,
+  GENDER_OPTIONS,
+  READINESS_VISUAL,
+  sanitizeKaraokeDigits,
+} from "@/lib/song-form-helpers";
 import {
   createSongId,
   loadSongs,
@@ -30,24 +42,6 @@ import {
   type SongGenderKey,
   type SongReadiness,
 } from "@/lib/songs-storage";
-import { logDebug } from "@/lib/debug-log-buffer";
-
-const GENDER_OPTIONS: { value: SongGenderKey; label: string }[] = [
-  { value: "unset", label: "미정" },
-  { value: "male", label: "남키" },
-  { value: "female", label: "여키" },
-];
-
-/** 리스트·필터에서 쓰는 준비도 색·아이콘 */
-const READINESS_VISUAL: Record<
-  SongReadiness,
-  { icon: keyof typeof Ionicons.glyphMap; color: string }
-> = {
-  none: { icon: "ellipse-outline", color: "#9e9e9e" },
-  can_full: { icon: "checkmark-circle", color: "#2e7d32" },
-  need_practice: { icon: "school-outline", color: "#ef6c00" },
-  will_try: { icon: "flag-outline", color: "#c62828" },
-};
 
 type ReadinessFilter = "all" | SongReadiness;
 
@@ -59,37 +53,137 @@ const READINESS_FILTER_CHIPS: { value: ReadinessFilter; label: string }[] = [
   })),
 ];
 
-function formatTranspose(semitones: number): string {
-  if (semitones === 0) return "원키";
-  if (semitones > 0) return `${semitones}키 업`;
-  return `${Math.abs(semitones)}키 다운`;
-}
+const ROW_TITLE_FONT = {
+  fontSize: 17,
+  lineHeight: 22,
+  fontWeight: "600" as const,
+};
 
-function sanitizeKaraokeDigits(text: string): string {
-  return text.replace(/\D/g, "").slice(0, 6);
-}
+const MARQUEE_PX_PER_SEC = 32;
+const MARQUEE_DURATION_MIN_MS = 2000;
+const MARQUEE_DURATION_MAX_MS = 35000;
 
-/** 브라우저/앱에서 열 수 있도록 http(s) 보정 */
-function buildYoutubeOpenUrl(raw: string): string {
-  const s = raw.trim();
-  if (!s) return s;
-  if (/^https?:\/\//i.test(s)) return s;
-  return `https://${s.replace(/^\/+/u, "")}`;
-}
+function SongRowTitleMarquee({ title }: { title: string }) {
+  const textColor = useThemeColor({}, "text");
+  const anim = useRef(new Animated.Value(0)).current;
+  const [containerW, setContainerW] = useState(0);
+  const [textW, setTextW] = useState<number | null>(null);
 
-function localYmd(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
+  useEffect(() => {
+    setTextW(null);
+    anim.setValue(0);
+  }, [title, anim]);
 
-function formatLastSungLine(ymd: string): string {
-  const s = ymd.trim();
-  if (!s) return "";
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
-  if (!m) return `마지막: ${s}`;
-  return `마지막: ${Number(m[1])}. ${Number(m[2])}. ${Number(m[3])}.`;
+  useEffect(() => {
+    if (textW == null || containerW <= 0) return;
+    const overflow = textW - containerW;
+    if (overflow <= 0) return;
+
+    /** effect가 다시 돌 때 translate가 중간값이면, 같은 duration으로 남은 거리만 움직여 체감 속도가 극도로 느려짐 */
+    anim.stopAnimation();
+    anim.setValue(0);
+
+    const distance = overflow + 28;
+    const rawDuration = (distance / MARQUEE_PX_PER_SEC) * 1000;
+    const duration = Math.min(
+      MARQUEE_DURATION_MAX_MS,
+      Math.max(MARQUEE_DURATION_MIN_MS, rawDuration),
+    );
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.delay(800),
+        Animated.timing(anim, {
+          toValue: -distance,
+          duration,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
+        Animated.delay(300),
+        Animated.timing(anim, {
+          toValue: 0,
+          duration: 0,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => {
+      loop.stop();
+      anim.stopAnimation();
+    };
+  }, [title, containerW, textW, anim]);
+
+  const measured = textW != null;
+  const needsMarquee = measured && containerW > 0 && textW! > containerW - 1;
+
+  return (
+    <View
+      style={styles.rowTitleMarqueeWrap}
+      onLayout={(e) => setContainerW(e.nativeEvent.layout.width)}
+    >
+      <View
+        style={styles.rowTitleMeasureHost}
+        pointerEvents="none"
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        collapsable={false}
+      >
+        <ScrollView
+          horizontal
+          scrollEnabled={false}
+          showsHorizontalScrollIndicator={false}
+          style={styles.rowTitleMeasureScroll}
+          contentContainerStyle={styles.rowTitleMeasureScrollInner}
+          onContentSizeChange={(w) => {
+            if (w <= 0) return;
+            setTextW((prev) => (prev !== w ? w : prev));
+          }}
+        >
+          <Text
+            style={[
+              styles.rowTitleMarqueeText,
+              ROW_TITLE_FONT,
+              { color: textColor },
+            ]}
+            numberOfLines={1}
+          >
+            {title}
+          </Text>
+        </ScrollView>
+      </View>
+      {needsMarquee ? (
+        <Animated.View
+          style={[
+            styles.rowTitleMarqueeTrack,
+            { transform: [{ translateX: anim }] },
+          ]}
+        >
+          <Text
+            style={[
+              styles.rowTitleMarqueeText,
+              ROW_TITLE_FONT,
+              { color: textColor },
+            ]}
+            numberOfLines={1}
+          >
+            {title}
+          </Text>
+        </Animated.View>
+      ) : (
+        <Text
+          style={[
+            styles.rowTitleMarqueeText,
+            ROW_TITLE_FONT,
+            { color: textColor },
+          ]}
+          numberOfLines={1}
+          ellipsizeMode={measured ? undefined : "tail"}
+        >
+          {title}
+        </Text>
+      )}
+    </View>
+  );
 }
 
 function SongRowDetails({
@@ -99,77 +193,54 @@ function SongRowDetails({
   item: Song;
   iconMuted: string;
 }) {
-  const artist = item.artist.trim();
-  const t = item.tjNumber.trim();
-  const k = item.kyNumber.trim();
-  const memo = item.memo.trim();
-  const lastSung = item.lastSungAt.trim();
-  const numberParts: string[] = [];
-  if (t) numberParts.push(`태진 ${t}`);
-  if (k) numberParts.push(`금영 ${k}`);
-  const numbersLine = numberParts.join(" · ");
-  const keyLine = `${GENDER_OPTIONS.find((g) => g.value === item.genderKey)?.label ?? "미정"} · ${formatTranspose(item.transposeSemitones)}`;
-  const hasLineBeforeKey = !!(artist || numbersLine);
+  const readinessLabel =
+    SONG_READINESS_OPTIONS.find((o) => o.value === item.readiness)?.label ??
+    "속성없음";
+  const transposeLabel = formatTransposeForSongCard(item.transposeSemitones);
   const rv = READINESS_VISUAL[item.readiness];
+  const genderKey = item.genderKey;
+  const genderShort =
+    genderKey === "male" ? "남" : genderKey === "female" ? "여" : null;
+  const genderColor =
+    genderKey === "male"
+      ? "#1565c0"
+      : genderKey === "female"
+        ? "#c62828"
+        : undefined;
 
   return (
     <View style={styles.rowTextBlock}>
-      <View style={styles.rowTitleRow}>
+      <SongRowTitleMarquee title={item.title} />
+      <View style={styles.rowReadinessLine}>
         <Ionicons
           name={rv.icon}
-          size={22}
+          size={18}
           color={rv.color}
           style={styles.rowReadinessIcon}
         />
-        <ThemedText
-          type="defaultSemiBold"
+        <Text
+          style={[styles.rowReadinessLabel, { color: iconMuted }]}
           numberOfLines={2}
-          style={styles.rowTitleText}
         >
-          {item.title}
-        </ThemedText>
+          {readinessLabel}
+          {genderShort ? (
+            <>
+              <Text style={{ color: iconMuted }}> · </Text>
+              <Text style={{ color: genderColor, fontWeight: "700" }}>
+                {genderShort}
+              </Text>
+            </>
+          ) : null}
+          {transposeLabel ? (
+            <>
+              <Text style={{ color: iconMuted }}> · </Text>
+              <Text style={{ color: iconMuted, fontWeight: "600" }}>
+                {transposeLabel}
+              </Text>
+            </>
+          ) : null}
+        </Text>
       </View>
-      {artist ? (
-        <ThemedText
-          style={[styles.rowArtist, { color: iconMuted }]}
-          numberOfLines={1}
-        >
-          {artist}
-        </ThemedText>
-      ) : null}
-      {numbersLine ? (
-        <ThemedText
-          style={[styles.rowMetaLine, { color: iconMuted }]}
-          numberOfLines={1}
-        >
-          {numbersLine}
-        </ThemedText>
-      ) : null}
-      <ThemedText
-        style={[
-          styles.rowMetaLine,
-          { color: iconMuted, marginTop: hasLineBeforeKey ? 2 : 4 },
-        ]}
-        numberOfLines={2}
-      >
-        {keyLine}
-      </ThemedText>
-      {memo ? (
-        <ThemedText
-          style={[styles.rowMemo, { color: iconMuted }]}
-          numberOfLines={1}
-        >
-          메모: {memo}
-        </ThemedText>
-      ) : null}
-      {lastSung ? (
-        <ThemedText
-          style={[styles.rowLastSung, { color: iconMuted }]}
-          numberOfLines={1}
-        >
-          {formatLastSungLine(lastSung)}
-        </ThemedText>
-      ) : null}
     </View>
   );
 }
@@ -178,6 +249,7 @@ function SongRowDetails({
 const CREATE_MODAL_ID = "__create__";
 
 export default function HomeScreen() {
+  const router = useRouter();
   const colorScheme = useColorScheme() ?? "light";
   const palette = Colors[colorScheme];
   const insets = useSafeAreaInsets();
@@ -199,30 +271,15 @@ export default function HomeScreen() {
   const [draftGender, setDraftGender] = useState<SongGenderKey>("unset");
   const [draftReadiness, setDraftReadiness] = useState<SongReadiness>("none");
   const [draftTranspose, setDraftTranspose] = useState(0);
-  const [readinessFilter, setReadinessFilter] = useState<ReadinessFilter>("all");
+  const [readinessFilter, setReadinessFilter] =
+    useState<ReadinessFilter>("all");
+  const [youtubeImportVisible, setYoutubeImportVisible] = useState(false);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
 
   const modalScrollMaxHeight = useMemo(
     () => Math.min(Dimensions.get("window").height * 0.52, 480),
     [],
   );
-
-  const openYouTube = useCallback(async (raw: string) => {
-    const url = buildYoutubeOpenUrl(raw);
-    if (!url) return;
-    try {
-      const ok = await Linking.canOpenURL(url);
-      if (!ok) {
-        logDebug(`[home] YouTube URL 열기 불가: ${url}`, "warn");
-        return;
-      }
-      await Linking.openURL(url);
-    } catch (e) {
-      logDebug(
-        `[home] YouTube 열기 실패: ${e instanceof Error ? e.message : String(e)}`,
-        "warn",
-      );
-    }
-  }, []);
 
   const persist = useCallback(async (next: Song[]) => {
     try {
@@ -239,13 +296,15 @@ export default function HomeScreen() {
     }
   }, []);
 
-  const markSungToday = useCallback(
-    (songId: string) => {
-      const day = localYmd(new Date());
-      const next = songs.map((s) =>
-        s.id === songId ? { ...s, lastSungAt: day } : s,
-      );
-      void persist(next).catch(() => {});
+  const handleYoutubeImportAdd = useCallback(
+    async (imported: Song[]) => {
+      if (imported.length === 0) return;
+      try {
+        await persist([...imported, ...songs]);
+        setYoutubeImportVisible(false);
+      } catch {
+        logDebug("[home] YouTube 일괄 추가 저장 실패", "warn");
+      }
     },
     [persist, songs],
   );
@@ -274,6 +333,7 @@ export default function HomeScreen() {
       })();
       return () => {
         cancelled = true;
+        setAddMenuOpen(false);
       };
     }, []),
   );
@@ -291,27 +351,12 @@ export default function HomeScreen() {
     setDraftTranspose(0);
   }, []);
 
-  const openSettings = useCallback((song: Song) => {
-    setModalSongId(song.id);
-    setDraftTitle(song.title);
-    setDraftArtist(song.artist);
-    setDraftTjNumber(song.tjNumber);
-    setDraftKyNumber(song.kyNumber);
-    setDraftMemo(song.memo);
-    setDraftYoutubeUrl(song.youtubeUrl);
-    setDraftGender(song.genderKey);
-    setDraftReadiness(song.readiness);
-    setDraftTranspose(song.transposeSemitones);
-  }, []);
-
   const closeModal = useCallback(() => {
     setModalSongId(null);
   }, []);
 
-  const isCreateModal = modalSongId === CREATE_MODAL_ID;
-
   const handleSaveModal = useCallback(async () => {
-    if (!modalSongId) return;
+    if (modalSongId !== CREATE_MODAL_ID) return;
     const title = draftTitle.trim();
     if (!title) return;
     const transpose = Math.max(-12, Math.min(12, draftTranspose));
@@ -321,40 +366,20 @@ export default function HomeScreen() {
     const memo = draftMemo.trim();
     const youtubeUrl = draftYoutubeUrl.trim();
     try {
-      if (modalSongId === CREATE_MODAL_ID) {
-        const song: Song = {
-          id: createSongId(),
-          title,
-          artist,
-          tjNumber,
-          kyNumber,
-          memo,
-          youtubeUrl,
-          lastSungAt: "",
-          readiness: draftReadiness,
-          genderKey: draftGender,
-          transposeSemitones: transpose,
-        };
-        await persist([song, ...songs]);
-      } else {
-        const next = songs.map((s) =>
-          s.id === modalSongId
-            ? {
-                ...s,
-                title,
-                artist,
-                tjNumber,
-                kyNumber,
-                memo,
-                youtubeUrl,
-                genderKey: draftGender,
-                readiness: draftReadiness,
-                transposeSemitones: transpose,
-              }
-            : s,
-        );
-        await persist(next);
-      }
+      const song: Song = {
+        id: createSongId(),
+        title,
+        artist,
+        tjNumber,
+        kyNumber,
+        memo,
+        youtubeUrl,
+        lastSungAt: "",
+        readiness: draftReadiness,
+        genderKey: draftGender,
+        transposeSemitones: transpose,
+      };
+      await persist([song, ...songs]);
       closeModal();
     } catch {
       logDebug("[home] 저장 후 모달 유지(저장 실패)", "warn");
@@ -374,16 +399,6 @@ export default function HomeScreen() {
     persist,
     songs,
   ]);
-
-  const handleDeleteFromModal = useCallback(async () => {
-    if (!modalSongId || modalSongId === CREATE_MODAL_ID) return;
-    try {
-      await persist(songs.filter((s) => s.id !== modalSongId));
-      closeModal();
-    } catch {
-      logDebug("[home] 삭제 실패", "warn");
-    }
-  }, [closeModal, modalSongId, persist, songs]);
 
   const bumpTranspose = useCallback((delta: number) => {
     setDraftTranspose((v) => Math.max(-12, Math.min(12, v + delta)));
@@ -430,17 +445,6 @@ export default function HomeScreen() {
       <ThemedText type="title" style={styles.headline}>
         메모
       </ThemedText>
-
-      <Pressable
-        onPress={openCreateModal}
-        style={({ pressed }) => [
-          styles.addSongButton,
-          { backgroundColor: tint, opacity: pressed ? 0.85 : 1 },
-        ]}
-      >
-        <Ionicons name="add-circle-outline" size={22} color="#fff" />
-        <ThemedText style={styles.addSongButtonLabel}>곡 추가</ThemedText>
-      </Pressable>
 
       <ScrollView
         horizontal
@@ -504,108 +508,163 @@ export default function HomeScreen() {
             style={{ color: iconMuted, textAlign: "center", marginTop: 24 }}
           >
             {readinessFilter === "all"
-              ? "등록된 곡이 없습니다. 「곡 추가」로 새 곡을 등록해 보세요."
+              ? "등록된 곡이 없습니다. 우하단 + 버튼에서 새 곡을 추가해 보세요."
               : "이 준비도에 해당하는 곡이 없습니다. 필터를 바꿔 보세요."}
           </ThemedText>
         }
         renderItem={({ item }) => {
-          const yt = item.youtubeUrl.trim();
           const idx = songs.findIndex((s) => s.id === item.id);
           return (
-          <View
-            style={[
-              styles.row,
-              {
-                borderColor: iconMuted,
-                backgroundColor: colorScheme === "dark" ? "#1c1c1e" : "#fff",
-              },
-            ]}
-          >
-            <View style={styles.rowMain}>
-            <View style={styles.reorderColumn}>
-              <Pressable
-                onPress={() => handleMoveSongByArrows(item.id, -1)}
-                disabled={idx <= 0}
-                style={({ pressed }) => [
-                  styles.reorderBtn,
-                  {
-                    opacity: idx <= 0 ? 0.35 : pressed ? 0.6 : 1,
-                  },
-                ]}
-                accessibilityLabel="한 칸 위로"
-              >
-                <Ionicons name="chevron-up" size={22} color={iconMuted} />
-              </Pressable>
-              <Pressable
-                onPress={() => handleMoveSongByArrows(item.id, 1)}
-                disabled={idx >= songs.length - 1}
-                style={({ pressed }) => [
-                  styles.reorderBtn,
-                  {
-                    opacity:
-                      idx >= songs.length - 1 ? 0.35 : pressed ? 0.6 : 1,
-                  },
-                ]}
-                accessibilityLabel="한 칸 아래로"
-              >
-                <Ionicons name="chevron-down" size={22} color={iconMuted} />
-              </Pressable>
-            </View>
-            <SongRowDetails item={item} iconMuted={iconMuted} />
             <Pressable
-              onPress={() => openSettings(item)}
-              hitSlop={12}
-              accessibilityRole="button"
-              accessibilityLabel={`${item.title} 설정`}
-              style={({ pressed }) => [
-                styles.gear,
-                { opacity: pressed ? 0.6 : 1 },
+              style={[
+                styles.row,
+                {
+                  borderColor: iconMuted,
+                  backgroundColor: colorScheme === "dark" ? "#1c1c1e" : "#fff",
+                },
               ]}
+              onPress={() =>
+                router.push({ pathname: "/song/[id]", params: { id: item.id } })
+              }
+              accessibilityRole="button"
+              accessibilityLabel={`${item.title} 상세 보기`}
             >
-              <Ionicons
-                name="settings-outline"
-                size={22}
-                color={palette.tint}
-              />
-            </Pressable>
-            </View>
-            <View style={styles.rowActionsBar}>
-              {yt ? (
+              <View style={styles.rowMain}>
+                <View style={styles.reorderColumn}>
+                  <Pressable
+                    onPress={() => handleMoveSongByArrows(item.id, -1)}
+                    disabled={idx <= 0}
+                    style={({ pressed }) => [
+                      styles.reorderBtn,
+                      {
+                        opacity: idx <= 0 ? 0.35 : pressed ? 0.6 : 1,
+                      },
+                    ]}
+                    accessibilityLabel="한 칸 위로"
+                  >
+                    <Ionicons name="chevron-up" size={22} color={iconMuted} />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleMoveSongByArrows(item.id, 1)}
+                    disabled={idx >= songs.length - 1}
+                    style={({ pressed }) => [
+                      styles.reorderBtn,
+                      {
+                        opacity:
+                          idx >= songs.length - 1 ? 0.35 : pressed ? 0.6 : 1,
+                      },
+                    ]}
+                    accessibilityLabel="한 칸 아래로"
+                  >
+                    <Ionicons name="chevron-down" size={22} color={iconMuted} />
+                  </Pressable>
+                </View>
+                <SongRowDetails item={item} iconMuted={iconMuted} />
                 <Pressable
-                  onPress={() => void openYouTube(yt)}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/song/[id]",
+                      params: { id: item.id },
+                    })
+                  }
+                  hitSlop={12}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${item.title} 상세`}
                   style={({ pressed }) => [
-                    styles.rowActionBtn,
-                    { opacity: pressed ? 0.75 : 1 },
+                    styles.gear,
+                    { opacity: pressed ? 0.6 : 1 },
                   ]}
-                  accessibilityRole="link"
-                  accessibilityLabel={`YouTube에서 ${item.title} 열기`}
                 >
-                  <Ionicons name="logo-youtube" size={22} color="#FF0000" />
+                  <Ionicons
+                    name="settings-outline"
+                    size={22}
+                    color={palette.tint}
+                  />
                 </Pressable>
-              ) : null}
-              <Pressable
-                onPress={() => markSungToday(item.id)}
-                style={({ pressed }) => [
-                  styles.rowActionBtn,
-                  { opacity: pressed ? 0.75 : 1 },
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="오늘 부른 것으로 저장"
-              >
-                <Ionicons
-                  name="checkmark-circle"
-                  size={24}
-                  color={palette.tint}
-                />
-              </Pressable>
-            </View>
-          </View>
+              </View>
+            </Pressable>
           );
         }}
       />
 
+      {addMenuOpen ? (
+        <Pressable
+          style={styles.fabScrim}
+          onPress={() => setAddMenuOpen(false)}
+          accessibilityLabel="메뉴 닫기"
+        />
+      ) : null}
+
+      <View
+        style={[styles.fabStack, { bottom: Math.max(insets.bottom, 10) + 8 }]}
+        pointerEvents="box-none"
+      >
+        {addMenuOpen ? (
+          <View
+            style={[
+              styles.fabBubble,
+              {
+                backgroundColor: colorScheme === "dark" ? "#2c2c2e" : "#fff",
+                borderColor: iconMuted,
+              },
+            ]}
+            accessibilityRole="menu"
+          >
+            <Pressable
+              onPress={() => {
+                setAddMenuOpen(false);
+                openCreateModal();
+              }}
+              style={({ pressed }) => [
+                styles.fabBubbleRow,
+                { opacity: pressed ? 0.75 : 1 },
+              ]}
+              accessibilityRole="menuitem"
+              accessibilityLabel="직접 추가"
+            >
+              <Ionicons name="create-outline" size={22} color={tint} />
+              <ThemedText type="defaultSemiBold" style={{ color: textColor }}>
+                직접 추가
+              </ThemedText>
+            </Pressable>
+            <View
+              style={[styles.fabBubbleDivider, { backgroundColor: iconMuted }]}
+            />
+            <Pressable
+              onPress={() => {
+                setAddMenuOpen(false);
+                setYoutubeImportVisible(true);
+              }}
+              style={({ pressed }) => [
+                styles.fabBubbleRow,
+                { opacity: pressed ? 0.75 : 1 },
+              ]}
+              accessibilityRole="menuitem"
+              accessibilityLabel="YouTube에서 추가"
+            >
+              <Ionicons name="logo-youtube" size={22} color="#FF0000" />
+              <ThemedText type="defaultSemiBold" style={{ color: textColor }}>
+                YouTube에서 추가
+              </ThemedText>
+            </Pressable>
+          </View>
+        ) : null}
+
+        <Pressable
+          onPress={() => setAddMenuOpen((o) => !o)}
+          style={({ pressed }) => [
+            styles.fabMain,
+            { backgroundColor: tint, opacity: pressed ? 0.88 : 1 },
+          ]}
+          accessibilityLabel="곡 추가 메뉴 열기"
+          accessibilityState={{ expanded: addMenuOpen }}
+        >
+          <Ionicons name="add" size={34} color="#fff" />
+        </Pressable>
+      </View>
+
       <Modal
-        visible={modalSongId !== null}
+        visible={modalSongId === CREATE_MODAL_ID}
         animationType="fade"
         transparent
         onRequestClose={closeModal}
@@ -614,7 +673,7 @@ export default function HomeScreen() {
           <Pressable style={styles.modalBackdrop} onPress={closeModal} />
           <View style={[styles.modalCard, { backgroundColor: screenBg }]}>
             <ThemedText type="subtitle" style={styles.modalTitle}>
-              {isCreateModal ? "새 곡 추가" : "곡 정보"}
+              새 곡 추가
             </ThemedText>
 
             <ScrollView
@@ -629,7 +688,7 @@ export default function HomeScreen() {
                 placeholder="제목"
                 placeholderTextColor={iconMuted}
                 style={[styles.modalInput, inputSurfaceStyle]}
-                autoFocus={isCreateModal}
+                autoFocus
               />
 
               <ThemedText style={styles.fieldLabel}>가수</ThemedText>
@@ -654,7 +713,11 @@ export default function HomeScreen() {
                     placeholderTextColor={iconMuted}
                     keyboardType="number-pad"
                     maxLength={6}
-                    style={[styles.modalInput, inputSurfaceStyle, styles.modalNumberInput]}
+                    style={[
+                      styles.modalInput,
+                      inputSurfaceStyle,
+                      styles.modalNumberInput,
+                    ]}
                   />
                 </View>
                 <View style={styles.modalNumberCol}>
@@ -668,7 +731,11 @@ export default function HomeScreen() {
                     placeholderTextColor={iconMuted}
                     keyboardType="number-pad"
                     maxLength={6}
-                    style={[styles.modalInput, inputSurfaceStyle, styles.modalNumberInput]}
+                    style={[
+                      styles.modalInput,
+                      inputSurfaceStyle,
+                      styles.modalNumberInput,
+                    ]}
                   />
                 </View>
               </View>
@@ -685,7 +752,9 @@ export default function HomeScreen() {
                         styles.segment,
                         {
                           borderColor: selected ? tint : iconMuted,
-                          backgroundColor: selected ? `${tint}22` : "transparent",
+                          backgroundColor: selected
+                            ? `${tint}22`
+                            : "transparent",
                         },
                       ]}
                     >
@@ -716,15 +785,13 @@ export default function HomeScreen() {
                         styles.modalReadinessSegment,
                         {
                           borderColor: selected ? tint : iconMuted,
-                          backgroundColor: selected ? `${tint}22` : "transparent",
+                          backgroundColor: selected
+                            ? `${tint}22`
+                            : "transparent",
                         },
                       ]}
                     >
-                      <Ionicons
-                        name={rv.icon}
-                        size={20}
-                        color={rv.color}
-                      />
+                      <Ionicons name={rv.icon} size={20} color={rv.color} />
                       <ThemedText
                         style={{
                           marginTop: 6,
@@ -742,7 +809,9 @@ export default function HomeScreen() {
                 })}
               </View>
 
-              <ThemedText style={styles.fieldLabel}>음정 (키 업/다운)</ThemedText>
+              <ThemedText style={styles.fieldLabel}>
+                음정 (키 업/다운)
+              </ThemedText>
               <View style={styles.transposeRow}>
                 <Pressable
                   onPress={() => bumpTranspose(-1)}
@@ -799,53 +868,9 @@ export default function HomeScreen() {
                 keyboardType="url"
                 style={[styles.modalInput, inputSurfaceStyle]}
               />
-
-              {!isCreateModal && modalSongId ? (
-                <View style={styles.sungTodayBlock}>
-                  <ThemedText style={[styles.sungTodayHint, { color: iconMuted }]}>
-                    {(() => {
-                      const cur =
-                        songs.find((s) => s.id === modalSongId)?.lastSungAt?.trim() ??
-                        "";
-                      return cur ? formatLastSungLine(cur) : "마지막으로 부른 날: 없음";
-                    })()}
-                  </ThemedText>
-                  <Pressable
-                    onPress={() => markSungToday(modalSongId)}
-                    style={({ pressed }) => [
-                      styles.sungTodayBtn,
-                      {
-                        borderColor: iconMuted,
-                        opacity: pressed ? 0.85 : 1,
-                        backgroundColor:
-                          colorScheme === "dark" ? "#2c2c2e" : "#f5f5f5",
-                      },
-                    ]}
-                  >
-                    <Ionicons name="checkmark-circle" size={22} color={tint} />
-                    <ThemedText
-                      type="defaultSemiBold"
-                      style={{ marginLeft: 10, color: textColor }}
-                    >
-                      오늘 불렀음
-                    </ThemedText>
-                  </Pressable>
-                </View>
-              ) : null}
             </ScrollView>
 
             <View style={styles.modalActions}>
-              {!isCreateModal ? (
-                <Pressable
-                  onPress={handleDeleteFromModal}
-                  style={({ pressed }) => [
-                    styles.textBtn,
-                    { opacity: pressed ? 0.6 : 1 },
-                  ]}
-                >
-                  <ThemedText style={{ color: "#c62828" }}>삭제</ThemedText>
-                </Pressable>
-              ) : null}
               <View style={{ flex: 1 }} />
               <Pressable
                 onPress={closeModal}
@@ -869,6 +894,17 @@ export default function HomeScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <YoutubeImportModal
+        visible={youtubeImportVisible}
+        onClose={() => setYoutubeImportVisible(false)}
+        onAdd={handleYoutubeImportAdd}
+        tint={tint}
+        iconMuted={iconMuted}
+        textColor={textColor}
+        screenBg={screenBg}
+        colorScheme={colorScheme}
+      />
     </ThemedView>
   );
 }
@@ -891,19 +927,51 @@ const styles = StyleSheet.create({
   listFlex: {
     flex: 1,
   },
-  addSongButton: {
+  fabScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.22)",
+    zIndex: 40,
+  },
+  fabStack: {
+    position: "absolute",
+    right: 20,
+    zIndex: 50,
+    alignItems: "flex-end",
+    gap: 12,
+  },
+  fabBubble: {
+    minWidth: 208,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  fabBubbleRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    borderRadius: 12,
+    gap: 12,
     paddingVertical: 14,
-    marginBottom: 12,
+    paddingHorizontal: 16,
   },
-  addSongButtonLabel: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 17,
+  fabBubbleDivider: {
+    height: StyleSheet.hairlineWidth,
+    opacity: 0.35,
+  },
+  fabMain: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.28,
+    shadowRadius: 5,
+    elevation: 8,
   },
   readinessFilterScroll: {
     marginBottom: 10,
@@ -927,7 +995,7 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   listContent: {
-    paddingBottom: 24,
+    paddingBottom: 96,
     flexGrow: 1,
   },
   row: {
@@ -940,26 +1008,58 @@ const styles = StyleSheet.create({
   },
   rowMain: {
     flexDirection: "row",
-    alignItems: "flex-start",
-  },
-  rowActionsBar: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
     alignItems: "center",
-    gap: 8,
-    marginTop: 8,
-    paddingTop: 6,
   },
-  rowActionBtn: {
-    alignItems: "center",
+  rowTitleMarqueeWrap: {
+    position: "relative",
+    overflow: "hidden",
+    minHeight: 22,
     justifyContent: "center",
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+  },
+  rowTitleMeasureHost: {
+    position: "absolute",
+    opacity: 0.02,
+    left: 0,
+    top: 0,
+    width: 8000,
+    height: ROW_TITLE_FONT.lineHeight,
+    zIndex: -1,
+    overflow: "hidden",
+  },
+  rowTitleMeasureScroll: {
+    flexGrow: 0,
+    maxHeight: ROW_TITLE_FONT.lineHeight,
+  },
+  rowTitleMeasureScrollInner: {
+    alignItems: "center",
+    paddingRight: 4,
+  },
+  rowTitleMarqueeText: {
+    flexShrink: 0,
+  },
+  rowTitleMarqueeTrack: {
+    alignSelf: "flex-start",
+  },
+  rowReadinessLine: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    marginTop: 4,
+    minWidth: 0,
+  },
+  rowReadinessIcon: {
+    flexShrink: 0,
+  },
+  rowReadinessLabel: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 13,
+    lineHeight: 18,
   },
   reorderColumn: {
-    marginRight: 4,
+    marginRight: 8,
     justifyContent: "center",
-    paddingTop: 4,
+    paddingTop: 2,
   },
   reorderBtn: {
     paddingVertical: 2,
@@ -968,34 +1068,6 @@ const styles = StyleSheet.create({
   rowTextBlock: {
     flex: 1,
     paddingRight: 8,
-  },
-  rowTitleRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
-  },
-  rowReadinessIcon: {
-    marginTop: 2,
-  },
-  rowTitleText: {
-    flex: 1,
-    minWidth: 0,
-  },
-  rowArtist: {
-    marginTop: 4,
-    fontSize: 14,
-  },
-  rowMetaLine: {
-    marginTop: 2,
-    fontSize: 13,
-  },
-  rowMemo: {
-    marginTop: 4,
-    fontSize: 12,
-  },
-  rowLastSung: {
-    marginTop: 4,
-    fontSize: 12,
   },
   gear: {
     padding: 6,
@@ -1033,23 +1105,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     marginBottom: 14,
-  },
-  sungTodayBlock: {
-    marginBottom: 4,
-  },
-  sungTodayHint: {
-    fontSize: 12,
-    marginBottom: 10,
-  },
-  sungTodayBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    marginBottom: 14,
-    alignSelf: "stretch",
   },
   modalNumberRow: {
     flexDirection: "row",

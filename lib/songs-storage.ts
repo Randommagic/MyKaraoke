@@ -51,6 +51,26 @@ export function createSongId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+/** YouTube 가져오기로 채울 기본 필드만 있는 새 곡 */
+export function createSongFromYoutubeImport(
+  title: string,
+  youtubeWatchUrl: string,
+): Song {
+  return {
+    id: createSongId(),
+    title: title.trim() || "(제목 없음)",
+    artist: "",
+    tjNumber: "",
+    kyNumber: "",
+    memo: "",
+    youtubeUrl: youtubeWatchUrl.trim(),
+    lastSungAt: "",
+    readiness: "none",
+    genderKey: "unset",
+    transposeSemitones: 0,
+  };
+}
+
 function normalizeGender(value: unknown): SongGenderKey {
   if (value === "male" || value === "female" || value === "unset") return value;
   return "unset";
