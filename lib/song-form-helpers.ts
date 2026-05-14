@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 
-import type { SongGenderKey, SongReadiness } from "@/lib/songs-storage";
+import type { Song, SongGenderKey, SongReadiness } from "@/lib/songs-storage";
 
 export const GENDER_OPTIONS: { value: SongGenderKey; label: string }[] = [
   { value: "unset", label: "미정" },
@@ -35,6 +35,16 @@ export function formatTransposeForSongCard(semitones: number): string | null {
 
 export function sanitizeKaraokeDigits(text: string): string {
   return text.replace(/\D/g, "").slice(0, 6);
+}
+
+/** 메모 목록 한 줄: 가수 있으면 `가수 - 제목`, 없으면 제목만 */
+export function formatSongListTitleLine(song: Song): string {
+  const artist = (song.artist ?? "").trim();
+  const title = (song.title ?? "").trim();
+  if (artist.length > 0) {
+    return title.length > 0 ? `${artist} - ${title}` : artist;
+  }
+  return title.length > 0 ? title : "(제목 없음)";
 }
 
 /** 브라우저/앱에서 열 수 있도록 http(s) 보정 */

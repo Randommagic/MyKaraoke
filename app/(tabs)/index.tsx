@@ -10,6 +10,7 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -27,6 +28,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { logDebug } from "@/lib/debug-log-buffer";
 import {
+  formatSongListTitleLine,
   formatTranspose,
   formatTransposeForSongCard,
   GENDER_OPTIONS,
@@ -68,10 +70,21 @@ function SongRowTitleMarquee({ title }: { title: string }) {
   const anim = useRef(new Animated.Value(0)).current;
   const [containerW, setContainerW] = useState(0);
   const [textW, setTextW] = useState<number | null>(null);
+  const [measureEpoch, setMeasureEpoch] = useState(0);
+
+  /** ScrollView·onLayout 등 여러 소스에서 오는 값 중 더 큰 쪽을 쓰면(웹+네이티브) 실제 글자 폭에 가깝게 맞출 수 있음 */
+  const commitMeasuredWidth = useCallback((w: number) => {
+    if (w <= 0 || !Number.isFinite(w)) return;
+    setTextW((prev) => {
+      if (prev == null) return w;
+      return w > prev ? w : prev;
+    });
+  }, []);
 
   useEffect(() => {
     setTextW(null);
     anim.setValue(0);
+    setMeasureEpoch((n) => n + 1);
   }, [title, anim]);
 
   useEffect(() => {
@@ -89,6 +102,7 @@ function SongRowTitleMarquee({ title }: { title: string }) {
       MARQUEE_DURATION_MAX_MS,
       Math.max(MARQUEE_DURATION_MIN_MS, rawDuration),
     );
+    const useNativeDriver = Platform.OS !== "web";
     const loop = Animated.loop(
       Animated.sequence([
         Animated.delay(800),
@@ -96,13 +110,13 @@ function SongRowTitleMarquee({ title }: { title: string }) {
           toValue: -distance,
           duration,
           easing: Easing.linear,
-          useNativeDriver: true,
+          useNativeDriver,
         }),
         Animated.delay(300),
         Animated.timing(anim, {
           toValue: 0,
           duration: 0,
-          useNativeDriver: true,
+          useNativeDriver,
         }),
       ]),
     );
@@ -114,11 +128,15 @@ function SongRowTitleMarquee({ title }: { title: string }) {
   }, [title, containerW, textW, anim]);
 
   const measured = textW != null;
-  const needsMarquee = measured && containerW > 0 && textW! > containerW - 1;
+  const needsMarquee = measured && containerW > 0 && textW! > containerW;
+  /** 마퀴 행만 고정 폭(말줄임 방지). 일반 행은 부모 폭에 맡김 — react-native-web은 onTextLayout이 없어 ScrollView 측정이 필수 */
+  const marqueeTextWidthStyle =
+    measured && needsMarquee ? { width: textW! } : null;
 
   return (
     <View
       style={styles.rowTitleMarqueeWrap}
+      collapsable={false}
       onLayout={(e) => setContainerW(e.nativeEvent.layout.width)}
     >
       <View
@@ -129,17 +147,25 @@ function SongRowTitleMarquee({ title }: { title: string }) {
         collapsable={false}
       >
         <ScrollView
+          key={measureEpoch}
           horizontal
           scrollEnabled={false}
           showsHorizontalScrollIndicator={false}
           style={styles.rowTitleMeasureScroll}
           contentContainerStyle={styles.rowTitleMeasureScrollInner}
-          onContentSizeChange={(w) => {
-            if (w <= 0) return;
-            setTextW((prev) => (prev !== w ? w : prev));
-          }}
+          onContentSizeChange={(cw) => commitMeasuredWidth(cw)}
         >
           <Text
+            onLayout={(e) =>
+              commitMeasuredWidth(e.nativeEvent.layout.width)
+            }
+            onTextLayout={(e) => {
+              const lines = e.nativeEvent.lines;
+              if (!lines.length) return;
+              commitMeasuredWidth(
+                Math.max(...lines.map((line) => line.width)),
+              );
+            }}
             style={[
               styles.rowTitleMarqueeText,
               ROW_TITLE_FONT,
@@ -163,8 +189,10 @@ function SongRowTitleMarquee({ title }: { title: string }) {
               styles.rowTitleMarqueeText,
               ROW_TITLE_FONT,
               { color: textColor },
+              marqueeTextWidthStyle,
             ]}
             numberOfLines={1}
+            ellipsizeMode="clip"
           >
             {title}
           </Text>
@@ -210,7 +238,7 @@ function SongRowDetails({
 
   return (
     <View style={styles.rowTextBlock}>
-      <SongRowTitleMarquee title={item.title} />
+      <SongRowTitleMarquee title={formatSongListTitleLine(item)} />
       <View style={styles.rowReadinessLine}>
         <Ionicons
           name={rv.icon}
@@ -258,6 +286,10 @@ export default function HomeScreen() {
   const textColor = useThemeColor({}, "text");
   const tint = useThemeColor({}, "tint");
   const iconMuted = useThemeColor({}, "icon");
+  const listRowSeparator = useThemeColor(
+    { light: "#e5e5ea", dark: "#3a3a3c" },
+    "icon",
+  );
 
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
@@ -518,16 +550,13 @@ export default function HomeScreen() {
             <Pressable
               style={[
                 styles.row,
-                {
-                  borderColor: iconMuted,
-                  backgroundColor: colorScheme === "dark" ? "#1c1c1e" : "#fff",
-                },
+                { borderBottomColor: listRowSeparator },
               ]}
               onPress={() =>
                 router.push({ pathname: "/song/[id]", params: { id: item.id } })
               }
               accessibilityRole="button"
-              accessibilityLabel={`${item.title} 상세 보기`}
+              accessibilityLabel={`${formatSongListTitleLine(item)} 상세 보기`}
             >
               <View style={styles.rowMain}>
                 <View style={styles.reorderColumn}>
@@ -569,7 +598,7 @@ export default function HomeScreen() {
                   }
                   hitSlop={12}
                   accessibilityRole="button"
-                  accessibilityLabel={`${item.title} 상세`}
+                  accessibilityLabel={`${formatSongListTitleLine(item)} 상세`}
                   style={({ pressed }) => [
                     styles.gear,
                     { opacity: pressed ? 0.6 : 1 },
@@ -1000,11 +1029,9 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: "column",
-    borderWidth: 1,
-    borderRadius: 12,
     paddingVertical: 10,
-    paddingHorizontal: 10,
-    marginBottom: 10,
+    paddingHorizontal: 0,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   rowMain: {
     flexDirection: "row",
@@ -1014,8 +1041,10 @@ const styles = StyleSheet.create({
     position: "relative",
     overflow: "hidden",
     minHeight: 22,
+    minWidth: 0,
     justifyContent: "center",
   },
+  /** 넓은 고정 폭 + 비음수 zIndex: Android에서 측정 레이아웃·onTextLayout이 안정적으로 돌게 함 */
   rowTitleMeasureHost: {
     position: "absolute",
     opacity: 0.02,
@@ -1023,8 +1052,9 @@ const styles = StyleSheet.create({
     top: 0,
     width: 8000,
     height: ROW_TITLE_FONT.lineHeight,
-    zIndex: -1,
-    overflow: "hidden",
+    zIndex: 0,
+    flexDirection: "row",
+    alignItems: "center",
   },
   rowTitleMeasureScroll: {
     flexGrow: 0,
@@ -1067,6 +1097,7 @@ const styles = StyleSheet.create({
   },
   rowTextBlock: {
     flex: 1,
+    minWidth: 0,
     paddingRight: 8,
   },
   gear: {
