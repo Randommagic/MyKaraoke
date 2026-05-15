@@ -8,7 +8,6 @@ import {
   Animated,
   Dimensions,
   Easing,
-  FlatList,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -20,6 +19,10 @@ import {
   View,
 } from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
+import DraggableFlatList, {
+  ScaleDecorator,
+  type RenderItemParams,
+} from "react-native-draggable-flatlist";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/themed-text";
@@ -63,6 +66,14 @@ const ROW_TITLE_FONT = {
   lineHeight: 19,
   fontWeight: "600" as const,
 };
+
+const ROW_SECONDARY_LINE_HEIGHT = 18;
+const ROW_VERTICAL_PADDING = 5;
+const ROW_MIN_HEIGHT =
+  ROW_VERTICAL_PADDING * 2 +
+  ROW_TITLE_FONT.lineHeight +
+  2 +
+  ROW_SECONDARY_LINE_HEIGHT;
 
 const MARQUEE_PX_PER_SEC = 32;
 const MARQUEE_DURATION_MIN_MS = 2000;
@@ -243,7 +254,6 @@ function SongRowDetails({
 
   const hasOtherSecondary =
     showReadinessTag || genderShort != null || transposeLabel != null;
-  const hasSecondary = sungToday || hasOtherSecondary;
 
   const extras = (
     <>
@@ -266,70 +276,70 @@ function SongRowDetails({
   return (
     <View style={styles.rowTextBlock}>
       <SongRowTitleMarquee title={formatSongListTitleLine(item)} />
-      {hasSecondary ? (
-        <View style={styles.rowReadinessLine}>
-          <View style={styles.rowReadinessLeft}>
-            {hasOtherSecondary ? (
-              <View style={styles.rowReadinessMain}>
-                {showReadinessTag ? (
-                  <Ionicons
-                    name={rv.icon}
-                    size={16}
-                    color={rv.color}
-                    style={styles.rowReadinessIcon}
-                  />
+      <View style={styles.rowReadinessLine}>
+        <View style={styles.rowReadinessLeft}>
+          {hasOtherSecondary ? (
+            <View style={styles.rowReadinessMain}>
+              {showReadinessTag ? (
+                <Ionicons
+                  name={rv.icon}
+                  size={16}
+                  color={rv.color}
+                  style={styles.rowReadinessIcon}
+                />
+              ) : null}
+              <Text
+                style={[styles.rowReadinessLabel, { color: iconMuted }]}
+                numberOfLines={1}
+              >
+                {showReadinessTag ? readinessLabel : null}
+                {showReadinessTag && (genderShort || transposeLabel) ? (
+                  <Text style={{ color: iconMuted }}> · </Text>
                 ) : null}
-                <Text
-                  style={[styles.rowReadinessLabel, { color: iconMuted }]}
-                  numberOfLines={2}
-                >
-                  {showReadinessTag ? readinessLabel : null}
-                  {showReadinessTag && (genderShort || transposeLabel) ? (
-                    <Text style={{ color: iconMuted }}> · </Text>
-                  ) : null}
-                  {genderShort || transposeLabel ? extras : null}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-          {sungToday ? (
-            <View style={styles.rowSungTodayBadge}>
-              <Ionicons name="mic" size={16} color="#2e7d32" />
-              <Text style={styles.rowSungTodayText}>오늘</Text>
+                {genderShort || transposeLabel ? extras : null}
+              </Text>
             </View>
           ) : null}
         </View>
-      ) : null}
+        {sungToday ? (
+          <View style={styles.rowSungTodayBadge}>
+            <Ionicons name="mic" size={16} color="#2e7d32" />
+            <Text style={styles.rowSungTodayText}>오늘</Text>
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
 
 function SwipeableSongRow({
   item,
-  idx,
-  songCount,
   rowBg,
   borderColor,
   iconMuted,
   onOpenDetail,
-  onMoveUp,
-  onMoveDown,
   onToggleSungToday,
   registerSwipeRef,
   closeOtherSwipes,
+  drag,
+  isActive,
+  swipeEnabled,
+  dragReorderEnabled,
+  onDisabledDragAttempt,
 }: {
   item: Song;
-  idx: number;
-  songCount: number;
   rowBg: string;
   borderColor: string;
   iconMuted: string;
   onOpenDetail: () => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
   onToggleSungToday: () => void;
   registerSwipeRef: (id: string, ref: Swipeable | null) => void;
   closeOtherSwipes: (id: string) => void;
+  drag: () => void;
+  isActive: boolean;
+  swipeEnabled: boolean;
+  dragReorderEnabled: boolean;
+  onDisabledDragAttempt: () => void;
 }) {
   const swipeRef = useRef<Swipeable | null>(null);
   const sungToday = isSungToday(item.lastSungAt);
@@ -362,67 +372,73 @@ function SwipeableSongRow({
   );
 
   return (
-    <Swipeable
-      ref={(r) => {
-        swipeRef.current = r;
-        registerSwipeRef(item.id, r);
-      }}
-      renderRightActions={renderRightActions}
-      onSwipeableWillOpen={() => closeOtherSwipes(item.id)}
-      onSwipeableOpen={(direction) => {
-        if (direction !== "right") return;
-        if (Platform.OS !== "web") {
-          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        }
-        onToggleSungToday();
-        swipeRef.current?.close();
-      }}
-      friction={2}
-      overshootLeft={false}
-      overshootRight={false}
-      rightThreshold={SWIPE_SUNG_ACTION_WIDTH * 0.45}
-      enableTrackpadTwoFingerGesture
-    >
-      <Pressable
-        style={[styles.row, { borderBottomColor: borderColor, backgroundColor: rowBg }]}
-        onPress={onOpenDetail}
-        accessibilityRole="button"
-        accessibilityLabel={`${formatSongListTitleLine(item)} 상세 보기`}
+    <ScaleDecorator activeScale={1.02}>
+      <Swipeable
+        ref={(r) => {
+          swipeRef.current = r;
+          registerSwipeRef(item.id, r);
+        }}
+        enabled={swipeEnabled && !isActive}
+        renderRightActions={renderRightActions}
+        onSwipeableWillOpen={() => closeOtherSwipes(item.id)}
+        onSwipeableOpen={(direction) => {
+          if (direction !== "right") return;
+          if (Platform.OS !== "web") {
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }
+          onToggleSungToday();
+          swipeRef.current?.close();
+        }}
+        friction={2}
+        overshootLeft={false}
+        overshootRight={false}
+        rightThreshold={SWIPE_SUNG_ACTION_WIDTH * 0.45}
+        enableTrackpadTwoFingerGesture
+        containerStyle={styles.swipeRowContainer}
       >
-        <View style={styles.rowMain}>
-          <View style={styles.reorderColumn}>
-            <Pressable
-              onPress={onMoveUp}
-              disabled={idx <= 0}
-              style={({ pressed }) => [
-                styles.reorderBtn,
-                {
-                  opacity: idx <= 0 ? 0.35 : pressed ? 0.6 : 1,
-                },
-              ]}
-              accessibilityLabel="한 칸 위로"
-            >
-              <Ionicons name="chevron-up" size={18} color={iconMuted} />
-            </Pressable>
-            <Pressable
-              onPress={onMoveDown}
-              disabled={idx >= songCount - 1}
-              style={({ pressed }) => [
-                styles.reorderBtn,
-                {
-                  opacity:
-                    idx >= songCount - 1 ? 0.35 : pressed ? 0.6 : 1,
-                },
-              ]}
-              accessibilityLabel="한 칸 아래로"
-            >
-              <Ionicons name="chevron-down" size={18} color={iconMuted} />
-            </Pressable>
-          </View>
-          <SongRowDetails item={item} iconMuted={iconMuted} />
+        <View
+          style={[
+            styles.row,
+            { borderBottomColor: borderColor, backgroundColor: rowBg },
+            isActive ? { opacity: 0.92 } : null,
+          ]}
+        >
+          <Pressable
+            onLongPress={() => {
+              if (dragReorderEnabled) {
+                drag();
+              } else {
+                onDisabledDragAttempt();
+              }
+            }}
+            delayLongPress={220}
+            disabled={isActive}
+            hitSlop={8}
+            style={({ pressed }) => [
+              styles.dragHandle,
+              {
+                opacity: dragReorderEnabled ? (pressed ? 0.65 : 1) : 0.3,
+              },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={
+              dragReorderEnabled ? "길게 눌러 순서 변경" : "전체 보기에서만 순서 변경 가능"
+            }
+          >
+            <Ionicons name="reorder-three" size={22} color={iconMuted} />
+          </Pressable>
+          <Pressable
+            onPress={onOpenDetail}
+            disabled={isActive}
+            style={styles.rowBody}
+            accessibilityRole="button"
+            accessibilityLabel={`${formatSongListTitleLine(item)} 상세 보기`}
+          >
+            <SongRowDetails item={item} iconMuted={iconMuted} />
+          </Pressable>
         </View>
-      </Pressable>
-    </Swipeable>
+      </Swipeable>
+    </ScaleDecorator>
   );
 }
 
@@ -459,6 +475,9 @@ export default function HomeScreen() {
     useState<ReadinessFilter>("all");
   const [youtubeImportVisible, setYoutubeImportVisible] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const toastOpacity = useRef(new Animated.Value(0)).current;
 
   const modalScrollMaxHeight = useMemo(
     () => Math.min(Dimensions.get("window").height * 0.52, 480),
@@ -588,19 +607,31 @@ export default function HomeScreen() {
     setDraftTranspose((v) => Math.max(-12, Math.min(12, v + delta)));
   }, []);
 
-  const handleMoveSongByArrows = useCallback(
-    (songId: string, direction: -1 | 1) => {
-      const index = songs.findIndex((s) => s.id === songId);
-      if (index < 0) return;
-      const to = index + direction;
-      if (to < 0 || to >= songs.length) return;
-      const next = [...songs];
-      const [removed] = next.splice(index, 1);
-      next.splice(to, 0, removed);
-      void persist(next).catch(() => {});
+  const showToast = useCallback(
+    (message: string) => {
+      setToastMessage(message);
+      setToastVisible(true);
+      toastOpacity.setValue(0);
+      Animated.sequence([
+        Animated.timing(toastOpacity, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.delay(2200),
+        Animated.timing(toastOpacity, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start(() => setToastVisible(false));
     },
-    [persist, songs],
+    [toastOpacity],
   );
+
+  const showReorderDisabledToast = useCallback(() => {
+    showToast("순서 변경은 전체 보기에서만 가능해요");
+  }, [showToast]);
 
   const swipeRowRefs = useRef<Map<string, Swipeable>>(new Map());
 
@@ -633,6 +664,18 @@ export default function HomeScreen() {
       }
     },
     [persist, songs],
+  );
+
+  const handleDragEnd = useCallback(
+    async (data: Song[]) => {
+      try {
+        await persist(data);
+        logDebug(`[home] 드래그 정렬 저장 (${data.length}곡)`, "info");
+      } catch {
+        logDebug("[home] 드래그 정렬 저장 실패", "warn");
+      }
+    },
+    [persist],
   );
 
   const inputSurfaceStyle = useMemo(
@@ -747,11 +790,13 @@ export default function HomeScreen() {
         })}
       </View>
 
-      <FlatList
-        data={filteredSongs}
+      <DraggableFlatList
+        data={readinessFilter === "all" ? songs : filteredSongs}
         keyExtractor={(item) => item.id}
+        containerStyle={styles.listFlex}
         style={styles.listFlex}
         contentContainerStyle={styles.listContent}
+        activationDistance={12}
         removeClippedSubviews={false}
         ListEmptyComponent={
           <ThemedText
@@ -762,27 +807,28 @@ export default function HomeScreen() {
               : "이 준비도에 해당하는 곡이 없습니다. 필터를 바꿔 보세요."}
           </ThemedText>
         }
-        renderItem={({ item }) => {
-          const idx = songs.findIndex((s) => s.id === item.id);
-          return (
-            <SwipeableSongRow
-              item={item}
-              idx={idx}
-              songCount={songs.length}
-              rowBg={screenBg}
-              borderColor={listRowSeparator}
-              iconMuted={iconMuted}
-              onOpenDetail={() =>
-                router.push({ pathname: "/song/[id]", params: { id: item.id } })
-              }
-              onMoveUp={() => handleMoveSongByArrows(item.id, -1)}
-              onMoveDown={() => handleMoveSongByArrows(item.id, 1)}
-              onToggleSungToday={() => void toggleSungToday(item.id)}
-              registerSwipeRef={registerSwipeRef}
-              closeOtherSwipes={closeOtherSwipes}
-            />
-          );
-        }}
+        onDragEnd={({ data }) =>
+          readinessFilter === "all" ? void handleDragEnd(data) : undefined
+        }
+        renderItem={({ item, drag, isActive }: RenderItemParams<Song>) => (
+          <SwipeableSongRow
+            item={item}
+            rowBg={screenBg}
+            borderColor={listRowSeparator}
+            iconMuted={iconMuted}
+            onOpenDetail={() =>
+              router.push({ pathname: "/song/[id]", params: { id: item.id } })
+            }
+            onToggleSungToday={() => void toggleSungToday(item.id)}
+            registerSwipeRef={registerSwipeRef}
+            closeOtherSwipes={closeOtherSwipes}
+            drag={drag}
+            isActive={isActive}
+            swipeEnabled={readinessFilter === "all"}
+            dragReorderEnabled={readinessFilter === "all"}
+            onDisabledDragAttempt={showReorderDisabledToast}
+          />
+        )}
       />
 
       {addMenuOpen ? (
@@ -1103,6 +1149,22 @@ export default function HomeScreen() {
         screenBg={screenBg}
         colorScheme={colorScheme}
       />
+
+      {toastVisible ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.toast,
+            {
+              opacity: toastOpacity,
+              bottom: Math.max(insets.bottom, 12) + 56,
+              backgroundColor: colorScheme === "dark" ? "#3a3a3c" : "#323232",
+            },
+          ]}
+        >
+          <ThemedText style={styles.toastText}>{toastMessage}</ThemedText>
+        </Animated.View>
+      ) : null}
     </ThemedView>
   );
 }
@@ -1202,15 +1264,28 @@ const styles = StyleSheet.create({
     paddingBottom: 96,
     flexGrow: 1,
   },
-  row: {
-    flexDirection: "column",
-    paddingVertical: 5,
-    paddingHorizontal: 0,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+  swipeRowContainer: {
+    width: "100%",
   },
-  rowMain: {
+  row: {
     flexDirection: "row",
     alignItems: "center",
+    minHeight: ROW_MIN_HEIGHT,
+    paddingVertical: ROW_VERTICAL_PADDING,
+    paddingHorizontal: 0,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    width: "100%",
+  },
+  dragHandle: {
+    justifyContent: "center",
+    alignItems: "center",
+    paddingRight: 6,
+    paddingLeft: 2,
+    alignSelf: "stretch",
+  },
+  rowBody: {
+    flex: 1,
+    minWidth: 0,
   },
   swipeSungAction: {
     width: SWIPE_SUNG_ACTION_WIDTH,
@@ -1265,6 +1340,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginTop: 2,
+    minHeight: ROW_SECONDARY_LINE_HEIGHT,
     minWidth: 0,
     gap: 8,
   },
@@ -1299,19 +1375,29 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
   },
-  reorderColumn: {
-    marginRight: 6,
-    justifyContent: "center",
-    paddingTop: 0,
-  },
-  reorderBtn: {
-    paddingVertical: 1,
-    paddingHorizontal: 2,
-  },
   rowTextBlock: {
     flex: 1,
     minWidth: 0,
     paddingRight: 4,
+  },
+  toast: {
+    position: "absolute",
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 6,
+    zIndex: 60,
+  },
+  toastText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+    textAlign: "center",
   },
   modalRoot: {
     flex: 1,
