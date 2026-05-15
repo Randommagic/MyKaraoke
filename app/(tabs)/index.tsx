@@ -30,6 +30,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { YoutubeImportModal } from "@/components/youtube-import-modal";
+import { normalizeYoutubeUrlForStorage } from "@/lib/youtube-import";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { logDebug } from "@/lib/debug-log-buffer";
@@ -55,12 +56,20 @@ import {
 
 type ReadinessFilter = "all" | SongReadiness;
 
+/** 홈 필터 칩 순서 (전체 다음): 완창 → 연습 → 시도 → 미정 */
+const READINESS_FILTER_CHIP_ORDER: SongReadiness[] = [
+  "can_full",
+  "need_practice",
+  "will_try",
+  "none",
+];
+
 const READINESS_FILTER_CHIPS: { value: ReadinessFilter; label: string }[] = [
   { value: "all", label: "전체" },
-  ...SONG_READINESS_OPTIONS.map((o) => ({
-    value: o.value as ReadinessFilter,
-    label: o.label,
-  })),
+  ...READINESS_FILTER_CHIP_ORDER.map((value) => {
+    const opt = SONG_READINESS_OPTIONS.find((o) => o.value === value)!;
+    return { value, label: opt.label };
+  }),
 ];
 
 const ROW_TITLE_FONT = {
@@ -82,6 +91,9 @@ const MARQUEE_DURATION_MIN_MS = 2000;
 const MARQUEE_DURATION_MAX_MS = 35000;
 const SWIPE_SUNG_ACTION_WIDTH = 148;
 const SWIPE_DELETE_ACTION_WIDTH = 88;
+/** 오늘 불렀음 취소 스와이프(노란 배경 + 어두운 전경) */
+const SWIPE_SUNG_CANCEL_BG = "#FFC107";
+const SWIPE_SUNG_CANCEL_FG = "#78350F";
 
 function confirmDeleteSongAlert(onDelete: () => void) {
   Alert.alert("삭제하시겠습니까?", "", [
@@ -537,6 +549,7 @@ function SwipeableSongRow({
         },
       ]}
     >
+      <Ionicons name="trash-outline" size={20} color="#fff" />
       <Text style={styles.swipeDeleteActionLabel}>삭제</Text>
     </Animated.View>
   );
@@ -547,8 +560,9 @@ function SwipeableSongRow({
     <Animated.View
       style={[
         styles.swipeSungAction,
+        sungToday ? styles.swipeSungCancelAction : null,
         {
-          backgroundColor: sungToday ? "#757575" : "#2e7d32",
+          backgroundColor: sungToday ? SWIPE_SUNG_CANCEL_BG : "#2e7d32",
           opacity: progress.interpolate({
             inputRange: [0, 1],
             outputRange: [0.65, 1],
@@ -558,7 +572,10 @@ function SwipeableSongRow({
       ]}
     >
       {sungToday ? (
-        <Ionicons name="close" size={28} color="#fff" />
+        <>
+          <Ionicons name="arrow-undo" size={22} color={SWIPE_SUNG_CANCEL_FG} />
+          <Text style={styles.swipeSungCancelActionLabel}>오늘 취소</Text>
+        </>
       ) : (
         <>
           <Ionicons name="mic" size={22} color="#fff" />
@@ -770,7 +787,7 @@ export default function HomeScreen() {
     const tjNumber = sanitizeKaraokeDigits(draftTjNumber);
     const kyNumber = sanitizeKaraokeDigits(draftKyNumber);
     const memo = draftMemo.trim();
-    const youtubeUrl = draftYoutubeUrl.trim();
+    const youtubeUrl = normalizeYoutubeUrlForStorage(draftYoutubeUrl);
     try {
       const song: Song = {
         id: createSongId(),
@@ -784,6 +801,7 @@ export default function HomeScreen() {
         readiness: draftReadiness,
         genderKey: draftGender,
         transposeSemitones: transpose,
+        importSource: "manual",
       };
       await persist([song, ...songs]);
       closeModal();
@@ -1300,6 +1318,7 @@ export default function HomeScreen() {
         visible={youtubeImportVisible}
         onClose={() => setYoutubeImportVisible(false)}
         onAdd={handleYoutubeImportAdd}
+        existingSongs={songs}
         tint={tint}
         iconMuted={iconMuted}
         textColor={textColor}
@@ -1480,9 +1499,11 @@ const styles = StyleSheet.create({
   },
   swipeDeleteAction: {
     width: SWIPE_DELETE_ACTION_WIDTH,
-    backgroundColor: "#c62828",
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 6,
+    backgroundColor: "#c62828",
     marginBottom: StyleSheet.hairlineWidth,
   },
   swipeDeleteActionLabel: {
@@ -1499,8 +1520,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     marginBottom: StyleSheet.hairlineWidth,
   },
+  swipeSungCancelAction: {
+    backgroundColor: SWIPE_SUNG_CANCEL_BG,
+  },
   swipeSungActionLabel: {
     color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+    flexShrink: 1,
+  },
+  swipeSungCancelActionLabel: {
+    color: SWIPE_SUNG_CANCEL_FG,
     fontSize: 13,
     fontWeight: "700",
     flexShrink: 1,

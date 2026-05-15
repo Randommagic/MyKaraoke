@@ -2,6 +2,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { Platform } from "react-native";
 
 import { logDebug } from "@/lib/debug-log-buffer";
+import { normalizeYoutubeUrlForStorage } from "@/lib/youtube-import";
 
 /** 웹(localStorage)과 예전 AsyncStorage 키와 동일하게 두어 이전 데이터 호환 */
 const WEB_STORAGE_KEY = "@mykaraoke/songs/v1";
@@ -33,6 +34,15 @@ export const READINESS_SLIDER_ORDER: SongReadiness[] = [
   "will_try",
 ];
 
+/** 곡이 앱에 들어온 경로 */
+export type SongImportSource = "manual" | "youtube" | "tj";
+
+export const SONG_IMPORT_SOURCE_LABELS: Record<SongImportSource, string> = {
+  manual: "직접 입력",
+  youtube: "YouTube에서",
+  tj: "TJ에서",
+};
+
 export type Song = {
   id: string;
   title: string;
@@ -53,6 +63,8 @@ export type Song = {
   genderKey: SongGenderKey;
   /** 반음 단위: 양수면 키 업, 음수면 키 다운 */
   transposeSemitones: number;
+  /** 추가·가져오기 경로 */
+  importSource: SongImportSource;
 };
 
 export function createSongId(): string {
@@ -71,12 +83,18 @@ export function createSongFromYoutubeImport(
     tjNumber: "",
     kyNumber: "",
     memo: "",
-    youtubeUrl: youtubeWatchUrl.trim(),
+    youtubeUrl: normalizeYoutubeUrlForStorage(youtubeWatchUrl),
     lastSungAt: "",
     readiness: "none",
     genderKey: "unset",
     transposeSemitones: 0,
+    importSource: "youtube",
   };
+}
+
+function normalizeImportSource(value: unknown): SongImportSource {
+  if (value === "manual" || value === "youtube" || value === "tj") return value;
+  return "manual";
 }
 
 function normalizeGender(value: unknown): SongGenderKey {
@@ -206,7 +224,9 @@ function parseSongs(raw: string | null): Song[] {
         readString(row, "kyNumber") || readString(row, "kumyoungNumber"),
       ),
       memo: readString(row, "memo"),
-      youtubeUrl: readString(row, "youtubeUrl") || readString(row, "youtubeLink"),
+      youtubeUrl: normalizeYoutubeUrlForStorage(
+        readString(row, "youtubeUrl") || readString(row, "youtubeLink"),
+      ),
       lastSungAt: normalizeLastSungAt(
         readString(row, "lastSungAt") || readString(row, "lastSungDate"),
       ),
@@ -216,6 +236,9 @@ function parseSongs(raw: string | null): Song[] {
         typeof row.transposeSemitones === "number"
           ? Math.max(-12, Math.min(12, Math.round(row.transposeSemitones)))
           : 0,
+      importSource: normalizeImportSource(
+        (row as Record<string, unknown>).importSource,
+      ),
     }));
 }
 

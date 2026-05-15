@@ -56,7 +56,23 @@ export function buildDefaultTjTopAndHotQuery(): TopAndHot100Query {
 export type TjChartSessionCache = {
   items: TjTopChartSongItem[];
   error: string | null;
+  searchStartDate: string;
+  searchEndDate: string;
 };
+
+/** `yyyy-mm-dd` → `yyyy.mm.dd` (표시용) */
+export function formatTjChartYmdDisplay(ymd: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim());
+  if (!m) return ymd.trim();
+  return `${m[1]}.${m[2]}.${m[3]}`;
+}
+
+export function formatTjChartPeriodSubtitle(
+  searchStartDate: string,
+  searchEndDate: string,
+): string {
+  return `${formatTjChartYmdDisplay(searchStartDate)} ~ ${formatTjChartYmdDisplay(searchEndDate)} 사이의 인기차트 100위`;
+}
 
 let tjSessionCache: TjChartSessionCache | null = null;
 let tjSessionLoad: Promise<void> | null = null;
@@ -70,15 +86,23 @@ export function ensureTjChartLoadedOnce(): Promise<void> {
   if (tjSessionCache !== null) return Promise.resolve();
   if (tjSessionLoad) return tjSessionLoad;
   tjSessionLoad = (async () => {
+    const query = buildDefaultTjTopAndHotQuery();
     try {
-      const data = await fetchTopAndHot100(buildDefaultTjTopAndHotQuery());
+      const data = await fetchTopAndHot100(query);
       tjSessionCache = {
         items: topChartItemsFromResponse(data),
         error: null,
+        searchStartDate: query.searchStartDate,
+        searchEndDate: query.searchEndDate,
       };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      tjSessionCache = { items: [], error: msg };
+      tjSessionCache = {
+        items: [],
+        error: msg,
+        searchStartDate: query.searchStartDate,
+        searchEndDate: query.searchEndDate,
+      };
     } finally {
       tjSessionLoad = null;
     }
@@ -136,5 +160,6 @@ export function songFromTjChartItem(item: TjTopChartSongItem): Song {
     readiness: "none",
     genderKey: "unset",
     transposeSemitones: 0,
+    importSource: "tj",
   };
 }

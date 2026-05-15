@@ -1,6 +1,6 @@
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -19,7 +19,9 @@ import { useThemeColor } from "@/hooks/use-theme-color";
 import { logDebug } from "@/lib/debug-log-buffer";
 import { sanitizeKaraokeDigits } from "@/lib/song-form-helpers";
 import {
+  buildDefaultTjTopAndHotQuery,
   ensureTjChartLoadedOnce,
+  formatTjChartPeriodSubtitle,
   getTjChartSessionCache,
   songFromTjChartItem,
   type TjTopChartSongItem,
@@ -32,14 +34,17 @@ function ChartRow({
   item,
   borderColor,
   subColor,
+  rankColor,
   onPress,
 }: {
   item: TjTopChartSongItem;
   borderColor: string;
   subColor: string;
+  rankColor: string;
   onPress: () => void;
 }) {
   const uri = item.imgthumb_path?.trim();
+  const rankLabel = item.rank?.trim() || "—";
   return (
     <Pressable
       onPress={onPress}
@@ -48,8 +53,16 @@ function ChartRow({
         { borderBottomColor: borderColor, opacity: pressed ? 0.75 : 1 },
       ]}
       accessibilityRole="button"
-      accessibilityLabel={`${item.indexTitle} ${item.indexSong}, 차트에서 선택`}
+      accessibilityLabel={`${rankLabel}위 ${item.indexTitle} ${item.indexSong}, 차트에서 선택`}
     >
+      <View style={styles.rankCol}>
+        <ThemedText
+          style={[styles.rankText, { color: rankColor }]}
+          numberOfLines={1}
+        >
+          {rankLabel}
+        </ThemedText>
+      </View>
       {uri ? (
         <Image
           source={{ uri }}
@@ -101,7 +114,20 @@ export default function PopularChartScreen() {
   const [duplicateExisting, setDuplicateExisting] = useState<Song | null>(null);
   const [savingAdd, setSavingAdd] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
+  const [tjPeriod, setTjPeriod] = useState(() => {
+    const cached = getTjChartSessionCache();
+    const q = buildDefaultTjTopAndHotQuery();
+    return {
+      start: cached?.searchStartDate ?? q.searchStartDate,
+      end: cached?.searchEndDate ?? q.searchEndDate,
+    };
+  });
   const toastOpacity = useRef(new Animated.Value(0)).current;
+
+  const tjPeriodSubtitle = useMemo(
+    () => formatTjChartPeriodSubtitle(tjPeriod.start, tjPeriod.end),
+    [tjPeriod.end, tjPeriod.start],
+  );
 
   const showAddedToast = useCallback(() => {
     setToastVisible(true);
@@ -131,6 +157,10 @@ export default function PopularChartScreen() {
     if (cached !== null) {
       setItems(cached.items);
       setError(cached.error);
+      setTjPeriod({
+        start: cached.searchStartDate,
+        end: cached.searchEndDate,
+      });
       setLoading(false);
       return;
     }
@@ -146,6 +176,10 @@ export default function PopularChartScreen() {
       if (next) {
         setItems(next.items);
         setError(next.error);
+        setTjPeriod({
+          start: next.searchStartDate,
+          end: next.searchEndDate,
+        });
       }
       setLoading(false);
     });
@@ -245,7 +279,7 @@ export default function PopularChartScreen() {
           })}
         </View>
         <ThemedText style={[styles.sub, { color: chipMuted }]}>
-          {provider === "tj" ? "TJ topAndHot100" : "KY — 준비중"}
+          {provider === "tj" ? tjPeriodSubtitle : "KY — 준비중"}
         </ThemedText>
       </View>
 
@@ -273,6 +307,7 @@ export default function PopularChartScreen() {
               item={item}
               borderColor={borderColor}
               subColor={subColor}
+              rankColor={textColor}
               onPress={() => setPendingAdd(item)}
             />
           )}
@@ -500,7 +535,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 12,
+    gap: 10,
+  },
+  rankCol: {
+    width: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rankText: {
+    fontSize: 15,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
   },
   thumb: {
     width: 48,

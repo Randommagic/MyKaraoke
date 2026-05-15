@@ -38,10 +38,12 @@ import {
   SONG_READINESS_OPTIONS,
   type Song,
   type SongGenderKey,
+  type SongImportSource,
   type SongReadiness,
 } from "@/lib/songs-storage";
 import {
   extractYoutubeVideoIdFromSongUrl,
+  normalizeYoutubeUrlForStorage,
   youtubeThumbnailUrlFromVideoId,
 } from "@/lib/youtube-import";
 
@@ -266,6 +268,7 @@ export default function SongDetailScreen() {
   const [draftReadiness, setDraftReadiness] = useState<SongReadiness>("none");
   const [draftTranspose, setDraftTranspose] = useState(0);
   const [lastSungAt, setLastSungAt] = useState("");
+  const [importSource, setImportSource] = useState<SongImportSource>("manual");
 
   const inputSurfaceStyle = useMemo(
     () => ({
@@ -282,12 +285,15 @@ export default function SongDetailScreen() {
     setDraftTjNumber(s.tjNumber);
     setDraftKyNumber(s.kyNumber);
     setDraftMemo(s.memo);
-    setDraftYoutubeUrl(s.youtubeUrl);
+    setDraftYoutubeUrl(normalizeYoutubeUrlForStorage(s.youtubeUrl));
     setDraftGender(s.genderKey);
     setDraftReadiness(s.readiness);
     setDraftTranspose(s.transposeSemitones);
     setLastSungAt(s.lastSungAt);
+    setImportSource(s.importSource);
   }, []);
+
+  const youtubeLinkLocked = importSource === "youtube";
 
   const reload = useCallback(async () => {
     if (!songId) {
@@ -364,7 +370,10 @@ export default function SongDetailScreen() {
               tjNumber: sanitizeKaraokeDigits(draftTjNumber),
               kyNumber: sanitizeKaraokeDigits(draftKyNumber),
               memo: draftMemo.trim(),
-              youtubeUrl: draftYoutubeUrl.trim(),
+              youtubeUrl:
+                s.importSource === "youtube"
+                  ? s.youtubeUrl
+                  : normalizeYoutubeUrlForStorage(draftYoutubeUrl),
               genderKey: draftGender,
               readiness: draftReadiness,
               transposeSemitones: transpose,
@@ -638,13 +647,25 @@ export default function SongDetailScreen() {
           />
 
           <ThemedText style={styles.fieldLabel}>YouTube 링크</ThemedText>
+          {youtubeLinkLocked ? (
+            <ThemedText
+              style={[styles.youtubeLockedHint, { color: iconMuted }]}
+            >
+              YouTube에서 가져온 곡은 링크를 수정할 수 없어요.
+            </ThemedText>
+          ) : null}
           <TextInput
             value={draftYoutubeUrl}
             onChangeText={setDraftYoutubeUrl}
+            editable={!youtubeLinkLocked}
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
-            style={[styles.input, inputSurfaceStyle]}
+            style={[
+              styles.input,
+              inputSurfaceStyle,
+              youtubeLinkLocked ? styles.inputLocked : null,
+            ]}
           />
           {draftYoutubeUrl.trim() && !youtubeThumbUri ? (
             <Pressable
@@ -790,6 +811,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     marginBottom: 14,
+  },
+  inputLocked: {
+    opacity: 0.65,
+  },
+  youtubeLockedHint: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 6,
   },
   numberRow: {
     flexDirection: "row",

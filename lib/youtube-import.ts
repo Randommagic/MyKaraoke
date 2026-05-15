@@ -1,3 +1,11 @@
+/** 가져오기 실패 시 사용자용 메시지 */
+export class YoutubeImportError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "YoutubeImportError";
+  }
+}
+
 /** YouTube에서 가져온 한 곡(미리보기) */
 export type YoutubeImportItem = {
   videoId: string;
@@ -93,8 +101,124 @@ export function youtubeThumbnailUrlFromVideoId(
   return `https://img.youtube.com/vi/${videoId}/${quality}.jpg`;
 }
 
-function watchUrlFromVideoId(videoId: string): string {
+export function watchUrlFromVideoId(videoId: string): string {
   return `https://www.youtube.com/watch?v=${videoId}`;
+}
+
+/** 저장용: 영상 ID만 남기고 `watch?v=` 형태로 통일. ID를 못 뽑으면 trim만 */
+export function normalizeYoutubeUrlForStorage(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  const id = extractYoutubeVideoIdFromSongUrl(trimmed);
+  if (id) return watchUrlFromVideoId(id);
+  return trimmed;
+}
+
+/** 목록에 이미 있는 YouTube 영상 ID 집합 */
+export function collectYoutubeVideoIdsFromSongs(
+  songs: { youtubeUrl: string }[],
+): Set<string> {
+  const ids = new Set<string>();
+  for (const s of songs) {
+    const id = extractYoutubeVideoIdFromSongUrl(s.youtubeUrl);
+    if (id) ids.add(id);
+  }
+  return ids;
+}
+
+/** 추가 가능한 곡을 위로, 이미 추가된 곡을 아래로 (각 그룹 내 API 순서 유지) */
+export function sortYoutubeImportItemsByExisting(
+  items: YoutubeImportItem[],
+  existingVideoIds: Set<string>,
+): YoutubeImportItem[] {
+  const addable: YoutubeImportItem[] = [];
+  const alreadyAdded: YoutubeImportItem[] = [];
+  for (const item of items) {
+    if (existingVideoIds.has(item.videoId)) alreadyAdded.push(item);
+    else addable.push(item);
+  }
+  return [...addable, ...alreadyAdded];
+}
+
+const YOUTUBE_SERVER_ERROR_MSG =
+  "YouTube 서버에 일시적인 문제가 있습니다. 잠시 후 다시 시도해 주세요.";
+
+function parseYoutubeApiErrorBody(text: string): {
+  reason: string;
+  message: string;
+} {
+  try {
+    const data = JSON.parse(text) as {
+      error?: {
+        message?: string;
+        errors?: { reason?: string }[];
+      };
+    };
+    return {
+      reason: data.error?.errors?.[0]?.reason?.trim() ?? "",
+      message: data.error?.message?.trim() ?? "",
+    };
+  } catch {
+    return { reason: "", message: "" };
+  }
+}
+
+function throwOembedFetchError(status: number): never {
+  if (status === 401 || status === 403) {
+    throw new YoutubeImportError(
+      "비공개이거나 볼 수 없는 영상입니다.",
+    );
+  }
+  if (status === 404) {
+    throw new YoutubeImportError(
+      "영상을 찾을 수 없습니다. 링크가 잘못되었거나 삭제되었을 수 있어요.",
+    );
+  }
+  if (status >= 500) {
+    throw new YoutubeImportError(YOUTUBE_SERVER_ERROR_MSG);
+  }
+  throw new YoutubeImportError(
+    "영상 정보를 불러오지 못했습니다. 링크가 올바른지 확인해 주세요.",
+  );
+}
+
+function throwPlaylistApiError(status: number, text: string): never {
+  const { reason } = parseYoutubeApiErrorBody(text);
+  const quotaReasons = new Set([
+    "quotaExceeded",
+    "dailyLimitExceeded",
+    "userRateLimitExceeded",
+    "rateLimitExceeded",
+  ]);
+
+  if (
+    status === 429 ||
+    status >= 500 ||
+    (status === 403 && quotaReasons.has(reason))
+  ) {
+    throw new YoutubeImportError(YOUTUBE_SERVER_ERROR_MSG);
+  }
+  if (
+    status === 403 &&
+    (reason === "playlistForbidden" || reason === "forbidden")
+  ) {
+    throw new YoutubeImportError(
+      "비공개 재생목록이거나 볼 수 없는 목록입니다.",
+    );
+  }
+  if (status === 404 || reason === "playlistNotFound") {
+    throw new YoutubeImportError(
+      "재생목록을 찾을 수 없습니다. 링크가 잘못되었을 수 있어요.",
+    );
+  }
+  if (status === 400 && (reason === "keyInvalid" || reason === "badRequest")) {
+    throw new YoutubeImportError(
+      "재생목록을 지금 불러올 수 없습니다. 설정을 확인해 주세요.",
+    );
+  }
+  throw new YoutubeImportError(
+    "재생목록을 불러오지 못했습니다. 링크가 올바른지 확인해 주세요.",
+  );
 }
 
 /** 단일 영상: oEmbed */
@@ -105,9 +229,7 @@ export async function fetchYoutubeVideoOembed(
   const oembed = `https://www.youtube.com/oembed?url=${encodeURIComponent(watchUrl)}&format=json`;
   const res = await fetch(oembed);
   if (!res.ok) {
-    throw new Error(
-      `영상 정보를 불러오지 못했습니다 (${res.status}). 링크를 확인해 주세요.`,
-    );
+    throwOembedFetchError(res.status);
   }
   const data = (await res.json()) as { title?: string };
   const title = (data.title ?? "").trim();
@@ -132,9 +254,7 @@ async function fetchPlaylistPage(
   const res = await fetch(u.toString());
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(
-      `재생목록을 불러오지 못했습니다 (${res.status}). 링크를 확인해 주세요.`,
-    );
+    throwPlaylistApiError(res.status, text);
   }
   let data: {
     items?: {
@@ -146,7 +266,7 @@ async function fetchPlaylistPage(
   try {
     data = JSON.parse(text) as typeof data;
   } catch {
-    throw new Error("재생목록 응답을 해석하지 못했습니다.");
+    throw new YoutubeImportError(YOUTUBE_SERVER_ERROR_MSG);
   }
 
   const out: YoutubeImportItem[] = [];
@@ -204,29 +324,39 @@ export async function loadYoutubeImportItems(
 ): Promise<YoutubeImportItem[]> {
   const parsed = parseYoutubeInput(rawUrl);
   if (parsed.kind === "invalid") {
-    throw new Error(
+    throw new YoutubeImportError(
       "인식할 수 없는 YouTube 링크입니다. 영상 또는 재생목록 주소를 넣어 주세요.",
     );
   }
-  if (parsed.kind === "video") {
-    const title = await fetchYoutubeVideoOembed(parsed.videoId);
-    return [
-      {
-        videoId: parsed.videoId,
-        title,
-        watchUrl: watchUrlFromVideoId(parsed.videoId),
-      },
-    ];
-  }
 
-  const apiKey = getYoutubeDataApiKey();
-  if (!apiKey) {
-    throw new Error("재생목록을 지금 불러올 수 없습니다.");
-  }
+  try {
+    if (parsed.kind === "video") {
+      const title = await fetchYoutubeVideoOembed(parsed.videoId);
+      return [
+        {
+          videoId: parsed.videoId,
+          title,
+          watchUrl: watchUrlFromVideoId(parsed.videoId),
+        },
+      ];
+    }
 
-  const items = await fetchPlaylistItems(parsed.playlistId, apiKey);
-  if (items.length === 0) {
-    throw new Error("재생목록에서 가져올 수 있는 공개 영상이 없습니다.");
+    const apiKey = getYoutubeDataApiKey();
+    if (!apiKey) {
+      throw new YoutubeImportError("재생목록을 지금 불러올 수 없습니다.");
+    }
+
+    const items = await fetchPlaylistItems(parsed.playlistId, apiKey);
+    if (items.length === 0) {
+      throw new YoutubeImportError(
+        "재생목록에서 가져올 수 있는 공개 영상이 없습니다. 비공개 영상만 있을 수 있어요.",
+      );
+    }
+    return items;
+  } catch (e) {
+    if (e instanceof YoutubeImportError) throw e;
+    throw new YoutubeImportError(
+      "네트워크 오류가 발생했습니다. 연결을 확인한 뒤 다시 시도해 주세요.",
+    );
   }
-  return items;
 }

@@ -14,7 +14,9 @@ import {
 import { ThemedText } from "@/components/themed-text";
 import { createSongFromYoutubeImport, type Song } from "@/lib/songs-storage";
 import {
+  collectYoutubeVideoIdsFromSongs,
   loadYoutubeImportItems,
+  sortYoutubeImportItemsByExisting,
   type YoutubeImportItem,
 } from "@/lib/youtube-import";
 
@@ -23,6 +25,8 @@ type Props = {
   onClose: () => void;
   /** 선택한 곡들을 목록 맨 앞에 합친 뒤 저장 */
   onAdd: (songs: Song[]) => void | Promise<void>;
+  /** 중복 판별용 현재 내 곡 목록 */
+  existingSongs: Song[];
   tint: string;
   iconMuted: string;
   textColor: string;
@@ -34,6 +38,7 @@ export function YoutubeImportModal({
   visible,
   onClose,
   onAdd,
+  existingSongs,
   tint,
   iconMuted,
   textColor,
@@ -45,6 +50,11 @@ export function YoutubeImportModal({
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<YoutubeImportItem[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const existingVideoIds = useMemo(
+    () => collectYoutubeVideoIdsFromSongs(existingSongs),
+    [existingSongs],
+  );
 
   useEffect(() => {
     if (!visible) return;
@@ -64,6 +74,14 @@ export function YoutubeImportModal({
     [colorScheme, iconMuted, textColor],
   );
 
+  const selectableVideoIds = useCallback(
+    (list: YoutubeImportItem[]) =>
+      list
+        .filter((x) => !existingVideoIds.has(x.videoId))
+        .map((x) => x.videoId),
+    [existingVideoIds],
+  );
+
   const onFetch = useCallback(async () => {
     setError(null);
     setItems([]);
@@ -75,28 +93,33 @@ export function YoutubeImportModal({
     }
     setLoading(true);
     try {
-      const list = await loadYoutubeImportItems(trimmed);
+      const fetched = await loadYoutubeImportItems(trimmed);
+      const list = sortYoutubeImportItemsByExisting(fetched, existingVideoIds);
       setItems(list);
-      setSelected(new Set(list.map((x) => x.videoId)));
+      setSelected(new Set(selectableVideoIds(list)));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, [url]);
+  }, [existingVideoIds, selectableVideoIds, url]);
 
-  const toggle = useCallback((videoId: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(videoId)) next.delete(videoId);
-      else next.add(videoId);
-      return next;
-    });
-  }, []);
+  const toggle = useCallback(
+    (videoId: string) => {
+      if (existingVideoIds.has(videoId)) return;
+      setSelected((prev) => {
+        const next = new Set(prev);
+        if (next.has(videoId)) next.delete(videoId);
+        else next.add(videoId);
+        return next;
+      });
+    },
+    [existingVideoIds],
+  );
 
   const selectAll = useCallback(() => {
-    setSelected(new Set(items.map((x) => x.videoId)));
-  }, [items]);
+    setSelected(new Set(selectableVideoIds(items)));
+  }, [items, selectableVideoIds]);
 
   const selectNone = useCallback(() => {
     setSelected(new Set());
@@ -106,12 +129,14 @@ export function YoutubeImportModal({
 
   const onConfirm = useCallback(async () => {
     if (selectedCount === 0) return;
-    const picked = items.filter((x) => selected.has(x.videoId));
+    const picked = items.filter(
+      (x) => selected.has(x.videoId) && !existingVideoIds.has(x.videoId),
+    );
     const songs = picked.map((row) =>
       createSongFromYoutubeImport(row.title, row.watchUrl),
     );
     await onAdd(songs);
-  }, [items, onAdd, selected, selectedCount]);
+  }, [existingVideoIds, items, onAdd, selected, selectedCount]);
 
   return (
     <Modal
@@ -186,43 +211,67 @@ export function YoutubeImportModal({
                 style={styles.list}
                 nestedScrollEnabled
                 renderItem={({ item }) => {
-                  const on = selected.has(item.videoId);
+                  const alreadyAdded = existingVideoIds.has(item.videoId);
+                  const on = !alreadyAdded && selected.has(item.videoId);
                   return (
                     <Pressable
                       onPress={() => toggle(item.videoId)}
+                      disabled={alreadyAdded}
                       style={({ pressed }) => [
                         styles.row,
                         {
                           borderColor: iconMuted,
-                          backgroundColor: on
-                            ? `${tint}14`
-                            : colorScheme === "dark"
-                              ? "#252528"
-                              : "#fafafa",
-                          opacity: pressed ? 0.85 : 1,
+                          backgroundColor: alreadyAdded
+                            ? colorScheme === "dark"
+                              ? "#1c1c1e"
+                              : "#ececee"
+                            : on
+                              ? `${tint}14`
+                              : colorScheme === "dark"
+                                ? "#252528"
+                                : "#fafafa",
+                          opacity: alreadyAdded ? 0.72 : pressed ? 0.85 : 1,
                         },
                       ]}
                     >
                       <Ionicons
-                        name={on ? "checkbox" : "square-outline"}
+                        name={
+                          alreadyAdded
+                            ? "checkbox-outline"
+                            : on
+                              ? "checkbox"
+                              : "square-outline"
+                        }
                         size={22}
-                        color={on ? tint : iconMuted}
+                        color={
+                          alreadyAdded ? iconMuted : on ? tint : iconMuted
+                        }
                         style={styles.checkIcon}
                       />
                       <View style={styles.rowText}>
                         <ThemedText
                           type="defaultSemiBold"
                           numberOfLines={2}
-                          style={{ color: textColor }}
+                          style={{
+                            color: alreadyAdded ? iconMuted : textColor,
+                          }}
                         >
                           {item.title}
                         </ThemedText>
-                        <ThemedText
-                          style={[styles.urlLine, { color: iconMuted }]}
-                          numberOfLines={1}
-                        >
-                          {item.watchUrl}
-                        </ThemedText>
+                        {alreadyAdded ? (
+                          <ThemedText
+                            style={[styles.addedBadge, { color: iconMuted }]}
+                          >
+                            이미 추가됨
+                          </ThemedText>
+                        ) : (
+                          <ThemedText
+                            style={[styles.urlLine, { color: iconMuted }]}
+                            numberOfLines={1}
+                          >
+                            {item.watchUrl}
+                          </ThemedText>
+                        )}
                       </View>
                     </Pressable>
                   );
@@ -343,6 +392,11 @@ const styles = StyleSheet.create({
   rowText: {
     flex: 1,
     minWidth: 0,
+  },
+  addedBadge: {
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 4,
   },
   urlLine: {
     fontSize: 11,
