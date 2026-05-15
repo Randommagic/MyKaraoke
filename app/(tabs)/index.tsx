@@ -1,10 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Dimensions,
   Easing,
@@ -79,6 +81,180 @@ const MARQUEE_PX_PER_SEC = 32;
 const MARQUEE_DURATION_MIN_MS = 2000;
 const MARQUEE_DURATION_MAX_MS = 35000;
 const SWIPE_SUNG_ACTION_WIDTH = 148;
+const SWIPE_DELETE_ACTION_WIDTH = 88;
+
+function confirmDeleteSongAlert(onDelete: () => void) {
+  Alert.alert("삭제하시겠습니까?", "", [
+    { text: "취소", style: "cancel" },
+    {
+      text: "삭제",
+      style: "destructive",
+      onPress: onDelete,
+    },
+  ]);
+}
+
+const FILTER_SCROLL_EDGE_THRESHOLD = 8;
+const FILTER_FADE_WIDTH = 36;
+
+function ReadinessFilterScroller({
+  readinessFilter,
+  onSelectFilter,
+  counts,
+  tint,
+  iconMuted,
+  textColor,
+  screenBg,
+  colorScheme,
+}: {
+  readinessFilter: ReadinessFilter;
+  onSelectFilter: (value: ReadinessFilter) => void;
+  counts: { all: number; by: Record<SongReadiness, number> };
+  tint: string;
+  iconMuted: string;
+  textColor: string;
+  screenBg: string;
+  colorScheme: "light" | "dark";
+}) {
+  const [scrollX, setScrollX] = useState(0);
+  const [viewportWidth, setViewportWidth] = useState(0);
+  const [contentWidth, setContentWidth] = useState(0);
+
+  const canScroll = contentWidth > viewportWidth + FILTER_SCROLL_EDGE_THRESHOLD;
+  const showLeftFade = canScroll && scrollX > FILTER_SCROLL_EDGE_THRESHOLD;
+  const showRightFade =
+    canScroll &&
+    scrollX + viewportWidth < contentWidth - FILTER_SCROLL_EDGE_THRESHOLD;
+
+  return (
+    <View style={styles.readinessFilterScroller}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={(e) => setScrollX(e.nativeEvent.contentOffset.x)}
+        onLayout={(e) => setViewportWidth(e.nativeEvent.layout.width)}
+        onContentSizeChange={(w) => setContentWidth(w)}
+        style={styles.readinessFilterScroll}
+        contentContainerStyle={styles.readinessFilterScrollContent}
+      >
+        {READINESS_FILTER_CHIPS.map((chip) => {
+          const selected = readinessFilter === chip.value;
+          const isAll = chip.value === "all";
+          const chipVisual = isAll
+            ? null
+            : READINESS_VISUAL[chip.value as SongReadiness];
+          const count = isAll
+            ? counts.all
+            : counts.by[chip.value as SongReadiness];
+          return (
+            <Pressable
+              key={chip.value}
+              onPress={() => onSelectFilter(chip.value)}
+              style={({ pressed }) => [
+                styles.readinessFilterChip,
+                {
+                  borderColor: selected ? tint : iconMuted,
+                  backgroundColor: selected
+                    ? `${tint}18`
+                    : colorScheme === "dark"
+                      ? "#2c2c2e"
+                      : "#f5f5f5",
+                  opacity: pressed ? 0.85 : 1,
+                },
+              ]}
+            >
+              {!isAll && chipVisual ? (
+                <Ionicons
+                  name={chipVisual.icon}
+                  size={16}
+                  color={chipVisual.color}
+                  style={styles.readinessFilterChipIcon}
+                />
+              ) : null}
+              <ThemedText
+                style={{
+                  fontSize: 13,
+                  fontWeight: selected ? "700" : "500",
+                  color: selected ? tint : textColor,
+                }}
+              >
+                {chip.label}
+              </ThemedText>
+              <View
+                style={[
+                  styles.readinessFilterBadge,
+                  {
+                    backgroundColor: selected
+                      ? `${tint}33`
+                      : colorScheme === "dark"
+                        ? "#3a3a3c"
+                        : "#e5e5ea",
+                  },
+                ]}
+              >
+                <ThemedText
+                  style={{
+                    fontSize: 11,
+                    fontWeight: "700",
+                    color: selected ? tint : textColor,
+                  }}
+                >
+                  {count}
+                </ThemedText>
+              </View>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+      {showLeftFade ? (
+        <>
+          <LinearGradient
+            colors={[screenBg, "transparent"]}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={[styles.readinessFilterFade, styles.readinessFilterFadeLeft]}
+            pointerEvents="none"
+          />
+          <Text
+            style={[
+              styles.readinessFilterChevron,
+              styles.readinessFilterChevronLeft,
+              { color: iconMuted },
+            ]}
+            pointerEvents="none"
+          >
+            ‹
+          </Text>
+        </>
+      ) : null}
+      {showRightFade ? (
+        <>
+          <LinearGradient
+            colors={["transparent", screenBg]}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={[
+              styles.readinessFilterFade,
+              styles.readinessFilterFadeRight,
+            ]}
+            pointerEvents="none"
+          />
+          <Text
+            style={[
+              styles.readinessFilterChevron,
+              styles.readinessFilterChevronRight,
+              { color: iconMuted },
+            ]}
+            pointerEvents="none"
+          >
+            ›
+          </Text>
+        </>
+      ) : null}
+    </View>
+  );
+}
 
 function SongRowTitleMarquee({ title }: { title: string }) {
   const textColor = useThemeColor({}, "text");
@@ -319,6 +495,7 @@ function SwipeableSongRow({
   iconMuted,
   onOpenDetail,
   onToggleSungToday,
+  onRequestDelete,
   registerSwipeRef,
   closeOtherSwipes,
   drag,
@@ -333,6 +510,7 @@ function SwipeableSongRow({
   iconMuted: string;
   onOpenDetail: () => void;
   onToggleSungToday: () => void;
+  onRequestDelete: () => void;
   registerSwipeRef: (id: string, ref: Swipeable | null) => void;
   closeOtherSwipes: (id: string) => void;
   drag: () => void;
@@ -343,6 +521,25 @@ function SwipeableSongRow({
 }) {
   const swipeRef = useRef<Swipeable | null>(null);
   const sungToday = isSungToday(item.lastSungAt);
+
+  const renderLeftActions = (
+    progress: Animated.AnimatedInterpolation<number>,
+  ) => (
+    <Animated.View
+      style={[
+        styles.swipeDeleteAction,
+        {
+          opacity: progress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0.65, 1],
+            extrapolate: "clamp",
+          }),
+        },
+      ]}
+    >
+      <Text style={styles.swipeDeleteActionLabel}>삭제</Text>
+    </Animated.View>
+  );
 
   const renderRightActions = (
     progress: Animated.AnimatedInterpolation<number>,
@@ -379,19 +576,25 @@ function SwipeableSongRow({
           registerSwipeRef(item.id, r);
         }}
         enabled={swipeEnabled && !isActive}
+        renderLeftActions={renderLeftActions}
         renderRightActions={renderRightActions}
         onSwipeableWillOpen={() => closeOtherSwipes(item.id)}
         onSwipeableOpen={(direction) => {
+          swipeRef.current?.close();
+          if (direction === "left") {
+            confirmDeleteSongAlert(onRequestDelete);
+            return;
+          }
           if (direction !== "right") return;
           if (Platform.OS !== "web") {
             void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           }
           onToggleSungToday();
-          swipeRef.current?.close();
         }}
         friction={2}
         overshootLeft={false}
         overshootRight={false}
+        leftThreshold={SWIPE_DELETE_ACTION_WIDTH * 0.45}
         rightThreshold={SWIPE_SUNG_ACTION_WIDTH * 0.45}
         enableTrackpadTwoFingerGesture
         containerStyle={styles.swipeRowContainer}
@@ -666,6 +869,19 @@ export default function HomeScreen() {
     [persist, songs],
   );
 
+  const handleDeleteSong = useCallback(
+    async (songId: string) => {
+      const next = songs.filter((s) => s.id !== songId);
+      try {
+        await persist(next);
+        logDebug(`[home] 곡 삭제: ${songId}`, "info");
+      } catch {
+        logDebug("[home] 곡 삭제 저장 실패", "warn");
+      }
+    },
+    [persist, songs],
+  );
+
   const handleDragEnd = useCallback(
     async (data: Song[]) => {
       try {
@@ -719,76 +935,16 @@ export default function HomeScreen() {
         메모
       </ThemedText>
 
-      <View style={styles.readinessFilterWrap}>
-        {READINESS_FILTER_CHIPS.map((chip) => {
-          const selected = readinessFilter === chip.value;
-          const isAll = chip.value === "all";
-          const chipVisual = isAll
-            ? null
-            : READINESS_VISUAL[chip.value as SongReadiness];
-          const count = isAll
-            ? readinessFilterCounts.all
-            : readinessFilterCounts.by[chip.value as SongReadiness];
-          return (
-            <Pressable
-              key={chip.value}
-              onPress={() => setReadinessFilter(chip.value)}
-              style={({ pressed }) => [
-                styles.readinessFilterChip,
-                {
-                  borderColor: selected ? tint : iconMuted,
-                  backgroundColor: selected
-                    ? `${tint}18`
-                    : colorScheme === "dark"
-                      ? "#2c2c2e"
-                      : "#f5f5f5",
-                  opacity: pressed ? 0.85 : 1,
-                },
-              ]}
-            >
-              {!isAll && chipVisual ? (
-                <Ionicons
-                  name={chipVisual.icon}
-                  size={16}
-                  color={chipVisual.color}
-                  style={styles.readinessFilterChipIcon}
-                />
-              ) : null}
-              <ThemedText
-                style={{
-                  fontSize: 13,
-                  fontWeight: selected ? "700" : "500",
-                  color: selected ? tint : textColor,
-                }}
-              >
-                {chip.label}
-              </ThemedText>
-              <View
-                style={[
-                  styles.readinessFilterBadge,
-                  {
-                    backgroundColor: selected
-                      ? `${tint}33`
-                      : colorScheme === "dark"
-                        ? "#3a3a3c"
-                        : "#e5e5ea",
-                  },
-                ]}
-              >
-                <ThemedText
-                  style={{
-                    fontSize: 11,
-                    fontWeight: "700",
-                    color: selected ? tint : textColor,
-                  }}
-                >
-                  {count}
-                </ThemedText>
-              </View>
-            </Pressable>
-          );
-        })}
-      </View>
+      <ReadinessFilterScroller
+        readinessFilter={readinessFilter}
+        onSelectFilter={setReadinessFilter}
+        counts={readinessFilterCounts}
+        tint={tint}
+        iconMuted={iconMuted}
+        textColor={textColor}
+        screenBg={screenBg}
+        colorScheme={colorScheme}
+      />
 
       <DraggableFlatList
         data={readinessFilter === "all" ? songs : filteredSongs}
@@ -820,11 +976,12 @@ export default function HomeScreen() {
               router.push({ pathname: "/song/[id]", params: { id: item.id } })
             }
             onToggleSungToday={() => void toggleSungToday(item.id)}
+            onRequestDelete={() => void handleDeleteSong(item.id)}
             registerSwipeRef={registerSwipeRef}
             closeOtherSwipes={closeOtherSwipes}
             drag={drag}
             isActive={isActive}
-            swipeEnabled={readinessFilter === "all"}
+            swipeEnabled
             dragReorderEnabled={readinessFilter === "all"}
             onDisabledDragAttempt={showReorderDisabledToast}
           />
@@ -1233,12 +1390,46 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 8,
   },
-  readinessFilterWrap: {
+  readinessFilterScroller: {
+    position: "relative",
+    marginBottom: 10,
+  },
+  readinessFilterScroll: {
+    flexGrow: 0,
+  },
+  readinessFilterScrollContent: {
     flexDirection: "row",
-    flexWrap: "wrap",
     alignItems: "center",
     gap: 8,
-    marginBottom: 10,
+    paddingRight: 4,
+  },
+  readinessFilterFade: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: FILTER_FADE_WIDTH,
+    zIndex: 1,
+  },
+  readinessFilterFadeLeft: {
+    left: 0,
+  },
+  readinessFilterFadeRight: {
+    right: 0,
+  },
+  readinessFilterChevron: {
+    position: "absolute",
+    top: "50%",
+    marginTop: -11,
+    fontSize: 22,
+    lineHeight: 22,
+    fontWeight: "600",
+    zIndex: 2,
+  },
+  readinessFilterChevronLeft: {
+    left: 6,
+  },
+  readinessFilterChevronRight: {
+    right: 6,
   },
   readinessFilterChip: {
     flexDirection: "row",
@@ -1286,6 +1477,18 @@ const styles = StyleSheet.create({
   rowBody: {
     flex: 1,
     minWidth: 0,
+  },
+  swipeDeleteAction: {
+    width: SWIPE_DELETE_ACTION_WIDTH,
+    backgroundColor: "#c62828",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: StyleSheet.hairlineWidth,
+  },
+  swipeDeleteActionLabel: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "700",
   },
   swipeSungAction: {
     width: SWIPE_SUNG_ACTION_WIDTH,
