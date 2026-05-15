@@ -1,11 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Linking,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -19,6 +21,7 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useThemeColor } from "@/hooks/use-theme-color";
+import { logDebug } from "@/lib/debug-log-buffer";
 import {
   buildYoutubeOpenUrl,
   formatLastSungLine,
@@ -28,19 +31,183 @@ import {
   READINESS_VISUAL,
   sanitizeKaraokeDigits,
 } from "@/lib/song-form-helpers";
-import { logDebug } from "@/lib/debug-log-buffer";
-import {
-  extractYoutubeVideoIdFromSongUrl,
-  youtubeThumbnailUrlFromVideoId,
-} from "@/lib/youtube-import";
 import {
   loadSongs,
+  READINESS_SLIDER_ORDER,
   saveSongs,
   SONG_READINESS_OPTIONS,
   type Song,
   type SongGenderKey,
   type SongReadiness,
 } from "@/lib/songs-storage";
+import {
+  extractYoutubeVideoIdFromSongUrl,
+  youtubeThumbnailUrlFromVideoId,
+} from "@/lib/youtube-import";
+
+const READINESS_THUMB_R = 13;
+
+function ReadinessDiscreteSlider({
+  value,
+  onChange,
+  tint,
+  textColor,
+  iconMuted,
+  thumbSurface,
+}: {
+  value: SongReadiness;
+  onChange: (v: SongReadiness) => void;
+  tint: string;
+  textColor: string;
+  iconMuted: string;
+  thumbSurface: string;
+}) {
+  const railW = useRef(0);
+  const railH = useRef(0);
+  const [layoutW, setLayoutW] = useState(0);
+
+  const index = useMemo(() => {
+    const i = READINESS_SLIDER_ORDER.indexOf(value);
+    return i >= 0 ? i : 0;
+  }, [value]);
+
+  const xToIndex = (locX: number) => {
+    const W = railW.current;
+    if (W <= 0) return 0;
+    const cell = W / 4;
+    return Math.min(3, Math.max(0, Math.floor(locX / cell)));
+  };
+
+  const isInsideRail = (e: {
+    nativeEvent: { locationX: number; locationY: number };
+  }) => {
+    const W = railW.current;
+    const H = railH.current;
+    if (W <= 0 || H <= 0) return false;
+    const { locationX: x, locationY: y } = e.nativeEvent;
+    return x >= 0 && x <= W && y >= 0 && y <= H;
+  };
+
+  const pan = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onPanResponderGrant: (e) => {
+          if (!isInsideRail(e)) return;
+          onChange(READINESS_SLIDER_ORDER[xToIndex(e.nativeEvent.locationX)]);
+        },
+        onPanResponderMove: (e) => {
+          if (!isInsideRail(e)) return;
+          onChange(READINESS_SLIDER_ORDER[xToIndex(e.nativeEvent.locationX)]);
+        },
+        onPanResponderRelease: (e) => {
+          if (!isInsideRail(e)) return;
+          onChange(READINESS_SLIDER_ORDER[xToIndex(e.nativeEvent.locationX)]);
+        },
+      }),
+    [onChange],
+  );
+
+  const thumbLeft =
+    layoutW > 0 ? (index + 0.5) * (layoutW / 4) - READINESS_THUMB_R : 0;
+
+  return (
+    <View style={styles.readinessRailWrap}>
+      <View
+        onLayout={(e) => {
+          const { width, height } = e.nativeEvent.layout;
+          railW.current = width;
+          railH.current = height;
+          setLayoutW(width);
+        }}
+        style={styles.readinessRailHit}
+        {...pan.panHandlers}
+        accessibilityRole="adjustable"
+        accessibilityValue={{
+          min: 0,
+          max: 3,
+          now: index,
+          text: SONG_READINESS_OPTIONS.find((o) => o.value === value)?.label,
+        }}
+      >
+        <View
+          style={[styles.readinessRailLine, { backgroundColor: iconMuted }]}
+        />
+        <View style={styles.readinessTicksRow}>
+          {[0, 1, 2, 3].map((i) => (
+            <View key={i} style={styles.readinessTickCol}>
+              <View
+                style={[
+                  styles.readinessTick,
+                  {
+                    backgroundColor: i === index ? tint : iconMuted,
+                    opacity: i === index ? 1 : 0.5,
+                  },
+                ]}
+              />
+            </View>
+          ))}
+        </View>
+        <View
+          pointerEvents="none"
+          style={[
+            styles.readinessThumb,
+            {
+              left: thumbLeft,
+              width: READINESS_THUMB_R * 2,
+              height: READINESS_THUMB_R * 2,
+              borderRadius: READINESS_THUMB_R,
+              borderColor: tint,
+              backgroundColor: thumbSurface,
+              marginTop: -READINESS_THUMB_R,
+            },
+          ]}
+        />
+      </View>
+      <View style={styles.readinessLabelsRow}>
+        {READINESS_SLIDER_ORDER.map((key) => {
+          const label =
+            SONG_READINESS_OPTIONS.find((o) => o.value === key)?.label ?? key;
+          const selected = key === value;
+          const rv = READINESS_VISUAL[key];
+          return (
+            <Pressable
+              key={key}
+              onPress={() => onChange(key)}
+              style={({ pressed }) => [
+                styles.readinessLabelCol,
+                { opacity: pressed ? 0.75 : 1 },
+              ]}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              accessibilityLabel={label}
+            >
+              <Ionicons
+                name={rv.icon}
+                size={18}
+                color={selected ? rv.color : iconMuted}
+                style={{ alignSelf: "center", opacity: selected ? 1 : 0.65 }}
+              />
+              <ThemedText
+                style={{
+                  marginTop: 4,
+                  fontSize: 11,
+                  textAlign: "center",
+                  fontWeight: selected ? "700" : "500",
+                  color: selected ? tint : textColor,
+                  opacity: selected ? 1 : 0.72,
+                }}
+                numberOfLines={1}
+              >
+                {label}
+              </ThemedText>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
 
 function SongDetailYoutubeThumb({
   uri,
@@ -77,7 +244,8 @@ function SongDetailYoutubeThumb({
 export default function SongDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string | string[] }>();
-  const songId = typeof params.id === "string" ? params.id : params.id?.[0] ?? "";
+  const songId =
+    typeof params.id === "string" ? params.id : (params.id?.[0] ?? "");
 
   const colorScheme = useColorScheme() ?? "light";
   const insets = useSafeAreaInsets();
@@ -312,14 +480,29 @@ export default function SongDetailScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator
         >
-          {youtubeThumbUri ? (
-            <View style={styles.ytThumbWrap}>
+          {draftYoutubeUrl.trim() && youtubeThumbUri ? (
+            <Pressable
+              key={youtubeThumbUri}
+              onPress={() => void openYouTube(draftYoutubeUrl)}
+              style={({ pressed }) => [
+                styles.ytThumbWrap,
+                pressed ? { opacity: 0.92 } : null,
+              ]}
+              accessibilityRole="link"
+              accessibilityLabel="YouTube에서 열기"
+            >
               <SongDetailYoutubeThumb
-                key={youtubeThumbUri}
                 uri={youtubeThumbUri}
                 iconMuted={iconMuted}
               />
-            </View>
+              <View style={styles.ytThumbOverlay} pointerEvents="none">
+                <Ionicons
+                  name="play-circle"
+                  size={64}
+                  color="rgba(255,255,255,0.94)"
+                />
+              </View>
+            </Pressable>
           ) : null}
           <ThemedText style={styles.fieldLabel}>노래 제목</ThemedText>
           <TextInput
@@ -401,40 +584,14 @@ export default function SongDetailScreen() {
           </View>
 
           <ThemedText style={styles.fieldLabel}>준비도</ThemedText>
-          <View style={styles.segmentRow}>
-            {SONG_READINESS_OPTIONS.map((opt) => {
-              const selected = draftReadiness === opt.value;
-              const rv = READINESS_VISUAL[opt.value];
-              return (
-                <Pressable
-                  key={opt.value}
-                  onPress={() => setDraftReadiness(opt.value)}
-                  style={[
-                    styles.segment,
-                    styles.readinessSegment,
-                    {
-                      borderColor: selected ? tint : iconMuted,
-                      backgroundColor: selected ? `${tint}22` : "transparent",
-                    },
-                  ]}
-                >
-                  <Ionicons name={rv.icon} size={20} color={rv.color} />
-                  <ThemedText
-                    style={{
-                      marginTop: 6,
-                      fontWeight: selected ? "700" : "500",
-                      color: selected ? tint : textColor,
-                      fontSize: 11,
-                      textAlign: "center",
-                    }}
-                    numberOfLines={2}
-                  >
-                    {opt.label}
-                  </ThemedText>
-                </Pressable>
-              );
-            })}
-          </View>
+          <ReadinessDiscreteSlider
+            value={draftReadiness}
+            onChange={setDraftReadiness}
+            tint={tint}
+            textColor={textColor}
+            iconMuted={iconMuted}
+            thumbSurface={colorScheme === "dark" ? "#1c1c1e" : "#fff"}
+          />
 
           <ThemedText style={styles.fieldLabel}>음정 (키 업/다운)</ThemedText>
           <View style={styles.transposeRow}>
@@ -445,7 +602,10 @@ export default function SongDetailScreen() {
               <ThemedText type="defaultSemiBold">−</ThemedText>
             </Pressable>
             <View style={styles.transposeValue}>
-              <ThemedText type="defaultSemiBold" style={{ textAlign: "center" }}>
+              <ThemedText
+                type="defaultSemiBold"
+                style={{ textAlign: "center" }}
+              >
                 {formatTranspose(draftTranspose)}
               </ThemedText>
               <ThemedText
@@ -486,7 +646,7 @@ export default function SongDetailScreen() {
             keyboardType="url"
             style={[styles.input, inputSurfaceStyle]}
           />
-          {draftYoutubeUrl.trim() ? (
+          {draftYoutubeUrl.trim() && !youtubeThumbUri ? (
             <Pressable
               onPress={() => void openYouTube(draftYoutubeUrl)}
               style={({ pressed }) => [
@@ -530,9 +690,23 @@ export default function SongDetailScreen() {
           </View>
         </ScrollView>
 
-        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+        <View
+          style={[
+            styles.footer,
+            { paddingBottom: Math.max(insets.bottom, 12) },
+          ]}
+        >
           <Pressable
-            onPress={() => void handleDelete()}
+            onPress={() =>
+              Alert.alert("삭제하시겠습니까?", "", [
+                { text: "취소", style: "cancel" },
+                {
+                  text: "삭제",
+                  style: "destructive",
+                  onPress: () => void handleDelete(),
+                },
+              ])
+            }
             style={({ pressed }) => [
               styles.textBtn,
               { opacity: pressed ? 0.6 : 1 },
@@ -586,6 +760,13 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     alignSelf: "stretch",
     backgroundColor: "#0a0a0a",
+    position: "relative",
+  },
+  ytThumbOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.28)",
   },
   ytThumbImage: {
     width: "100%",
@@ -634,10 +815,52 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     alignItems: "center",
   },
-  readinessSegment: {
+  readinessRailWrap: {
+    marginBottom: 14,
+  },
+  readinessRailHit: {
+    minHeight: 48,
+    position: "relative",
     justifyContent: "center",
-    minHeight: 76,
-    paddingVertical: 8,
+  },
+  readinessRailLine: {
+    position: "absolute",
+    left: "10%",
+    right: "10%",
+    top: "50%",
+    marginTop: -1,
+    height: 2,
+    borderRadius: 1,
+  },
+  readinessTicksRow: {
+    flexDirection: "row",
+    height: 48,
+    alignItems: "center",
+  },
+  readinessTickCol: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  readinessTick: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  readinessThumb: {
+    position: "absolute",
+    top: "50%",
+    borderWidth: 2,
+  },
+  readinessLabelsRow: {
+    flexDirection: "row",
+    marginTop: 6,
+  },
+  readinessLabelCol: {
+    flex: 1,
+    paddingHorizontal: 2,
+    paddingVertical: 4,
+    alignItems: "center",
   },
   transposeRow: {
     flexDirection: "row",

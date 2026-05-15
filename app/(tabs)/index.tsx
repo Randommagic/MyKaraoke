@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -18,12 +19,12 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Swipeable } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { YoutubeImportModal } from "@/components/youtube-import-modal";
-import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { logDebug } from "@/lib/debug-log-buffer";
@@ -32,6 +33,8 @@ import {
   formatTranspose,
   formatTransposeForSongCard,
   GENDER_OPTIONS,
+  isSungToday,
+  localYmd,
   READINESS_VISUAL,
   sanitizeKaraokeDigits,
 } from "@/lib/song-form-helpers";
@@ -56,14 +59,15 @@ const READINESS_FILTER_CHIPS: { value: ReadinessFilter; label: string }[] = [
 ];
 
 const ROW_TITLE_FONT = {
-  fontSize: 17,
-  lineHeight: 22,
+  fontSize: 15,
+  lineHeight: 19,
   fontWeight: "600" as const,
 };
 
 const MARQUEE_PX_PER_SEC = 32;
 const MARQUEE_DURATION_MIN_MS = 2000;
 const MARQUEE_DURATION_MAX_MS = 35000;
+const SWIPE_SUNG_ACTION_WIDTH = 148;
 
 function SongRowTitleMarquee({ title }: { title: string }) {
   const textColor = useThemeColor({}, "text");
@@ -221,9 +225,10 @@ function SongRowDetails({
   item: Song;
   iconMuted: string;
 }) {
+  const sungToday = isSungToday(item.lastSungAt);
+  const showReadinessTag = item.readiness !== "none";
   const readinessLabel =
-    SONG_READINESS_OPTIONS.find((o) => o.value === item.readiness)?.label ??
-    "속성없음";
+    SONG_READINESS_OPTIONS.find((o) => o.value === item.readiness)?.label ?? "";
   const transposeLabel = formatTransposeForSongCard(item.transposeSemitones);
   const rv = READINESS_VISUAL[item.readiness];
   const genderKey = item.genderKey;
@@ -236,40 +241,188 @@ function SongRowDetails({
         ? "#c62828"
         : undefined;
 
+  const hasOtherSecondary =
+    showReadinessTag || genderShort != null || transposeLabel != null;
+  const hasSecondary = sungToday || hasOtherSecondary;
+
+  const extras = (
+    <>
+      {genderShort ? (
+        <Text style={{ color: genderColor, fontWeight: "700" }}>
+          {genderShort}
+        </Text>
+      ) : null}
+      {genderShort && transposeLabel ? (
+        <Text style={{ color: iconMuted }}> · </Text>
+      ) : null}
+      {transposeLabel ? (
+        <Text style={{ color: iconMuted, fontWeight: "600" }}>
+          {transposeLabel}
+        </Text>
+      ) : null}
+    </>
+  );
+
   return (
     <View style={styles.rowTextBlock}>
       <SongRowTitleMarquee title={formatSongListTitleLine(item)} />
-      <View style={styles.rowReadinessLine}>
-        <Ionicons
-          name={rv.icon}
-          size={18}
-          color={rv.color}
-          style={styles.rowReadinessIcon}
-        />
-        <Text
-          style={[styles.rowReadinessLabel, { color: iconMuted }]}
-          numberOfLines={2}
-        >
-          {readinessLabel}
-          {genderShort ? (
-            <>
-              <Text style={{ color: iconMuted }}> · </Text>
-              <Text style={{ color: genderColor, fontWeight: "700" }}>
-                {genderShort}
-              </Text>
-            </>
+      {hasSecondary ? (
+        <View style={styles.rowReadinessLine}>
+          <View style={styles.rowReadinessLeft}>
+            {hasOtherSecondary ? (
+              <View style={styles.rowReadinessMain}>
+                {showReadinessTag ? (
+                  <Ionicons
+                    name={rv.icon}
+                    size={16}
+                    color={rv.color}
+                    style={styles.rowReadinessIcon}
+                  />
+                ) : null}
+                <Text
+                  style={[styles.rowReadinessLabel, { color: iconMuted }]}
+                  numberOfLines={2}
+                >
+                  {showReadinessTag ? readinessLabel : null}
+                  {showReadinessTag && (genderShort || transposeLabel) ? (
+                    <Text style={{ color: iconMuted }}> · </Text>
+                  ) : null}
+                  {genderShort || transposeLabel ? extras : null}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+          {sungToday ? (
+            <View style={styles.rowSungTodayBadge}>
+              <Ionicons name="mic" size={16} color="#2e7d32" />
+              <Text style={styles.rowSungTodayText}>오늘</Text>
+            </View>
           ) : null}
-          {transposeLabel ? (
-            <>
-              <Text style={{ color: iconMuted }}> · </Text>
-              <Text style={{ color: iconMuted, fontWeight: "600" }}>
-                {transposeLabel}
-              </Text>
-            </>
-          ) : null}
-        </Text>
-      </View>
+        </View>
+      ) : null}
     </View>
+  );
+}
+
+function SwipeableSongRow({
+  item,
+  idx,
+  songCount,
+  rowBg,
+  borderColor,
+  iconMuted,
+  onOpenDetail,
+  onMoveUp,
+  onMoveDown,
+  onToggleSungToday,
+  registerSwipeRef,
+  closeOtherSwipes,
+}: {
+  item: Song;
+  idx: number;
+  songCount: number;
+  rowBg: string;
+  borderColor: string;
+  iconMuted: string;
+  onOpenDetail: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onToggleSungToday: () => void;
+  registerSwipeRef: (id: string, ref: Swipeable | null) => void;
+  closeOtherSwipes: (id: string) => void;
+}) {
+  const swipeRef = useRef<Swipeable | null>(null);
+  const sungToday = isSungToday(item.lastSungAt);
+
+  const renderRightActions = (
+    progress: Animated.AnimatedInterpolation<number>,
+  ) => (
+    <Animated.View
+      style={[
+        styles.swipeSungAction,
+        {
+          backgroundColor: sungToday ? "#757575" : "#2e7d32",
+          opacity: progress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0.65, 1],
+            extrapolate: "clamp",
+          }),
+        },
+      ]}
+    >
+      {sungToday ? (
+        <Ionicons name="close" size={28} color="#fff" />
+      ) : (
+        <>
+          <Ionicons name="mic" size={22} color="#fff" />
+          <Text style={styles.swipeSungActionLabel}>오늘 불렀음</Text>
+        </>
+      )}
+    </Animated.View>
+  );
+
+  return (
+    <Swipeable
+      ref={(r) => {
+        swipeRef.current = r;
+        registerSwipeRef(item.id, r);
+      }}
+      renderRightActions={renderRightActions}
+      onSwipeableWillOpen={() => closeOtherSwipes(item.id)}
+      onSwipeableOpen={(direction) => {
+        if (direction !== "right") return;
+        if (Platform.OS !== "web") {
+          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
+        onToggleSungToday();
+        swipeRef.current?.close();
+      }}
+      friction={2}
+      overshootLeft={false}
+      overshootRight={false}
+      rightThreshold={SWIPE_SUNG_ACTION_WIDTH * 0.45}
+      enableTrackpadTwoFingerGesture
+    >
+      <Pressable
+        style={[styles.row, { borderBottomColor: borderColor, backgroundColor: rowBg }]}
+        onPress={onOpenDetail}
+        accessibilityRole="button"
+        accessibilityLabel={`${formatSongListTitleLine(item)} 상세 보기`}
+      >
+        <View style={styles.rowMain}>
+          <View style={styles.reorderColumn}>
+            <Pressable
+              onPress={onMoveUp}
+              disabled={idx <= 0}
+              style={({ pressed }) => [
+                styles.reorderBtn,
+                {
+                  opacity: idx <= 0 ? 0.35 : pressed ? 0.6 : 1,
+                },
+              ]}
+              accessibilityLabel="한 칸 위로"
+            >
+              <Ionicons name="chevron-up" size={18} color={iconMuted} />
+            </Pressable>
+            <Pressable
+              onPress={onMoveDown}
+              disabled={idx >= songCount - 1}
+              style={({ pressed }) => [
+                styles.reorderBtn,
+                {
+                  opacity:
+                    idx >= songCount - 1 ? 0.35 : pressed ? 0.6 : 1,
+                },
+              ]}
+              accessibilityLabel="한 칸 아래로"
+            >
+              <Ionicons name="chevron-down" size={18} color={iconMuted} />
+            </Pressable>
+          </View>
+          <SongRowDetails item={item} iconMuted={iconMuted} />
+        </View>
+      </Pressable>
+    </Swipeable>
   );
 }
 
@@ -279,7 +432,6 @@ const CREATE_MODAL_ID = "__create__";
 export default function HomeScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? "light";
-  const palette = Colors[colorScheme];
   const insets = useSafeAreaInsets();
 
   const screenBg = useThemeColor({}, "background");
@@ -450,6 +602,39 @@ export default function HomeScreen() {
     [persist, songs],
   );
 
+  const swipeRowRefs = useRef<Map<string, Swipeable>>(new Map());
+
+  const registerSwipeRef = useCallback((id: string, ref: Swipeable | null) => {
+    if (ref) swipeRowRefs.current.set(id, ref);
+    else swipeRowRefs.current.delete(id);
+  }, []);
+
+  const closeOtherSwipes = useCallback((openId: string) => {
+    swipeRowRefs.current.forEach((ref, id) => {
+      if (id !== openId) ref.close();
+    });
+  }, []);
+
+  const toggleSungToday = useCallback(
+    async (songId: string) => {
+      const today = localYmd(new Date());
+      const next = songs.map((s) => {
+        if (s.id !== songId) return s;
+        return {
+          ...s,
+          lastSungAt: s.lastSungAt.trim() === today ? "" : today,
+        };
+      });
+      try {
+        await persist(next);
+        logDebug(`[home] 오늘 불렀음 토글: ${songId}`, "info");
+      } catch {
+        logDebug("[home] 오늘 불렀음 저장 실패", "warn");
+      }
+    },
+    [persist, songs],
+  );
+
   const inputSurfaceStyle = useMemo(
     () => ({
       borderColor: iconMuted,
@@ -463,6 +648,19 @@ export default function HomeScreen() {
     if (readinessFilter === "all") return songs;
     return songs.filter((s) => s.readiness === readinessFilter);
   }, [readinessFilter, songs]);
+
+  const readinessFilterCounts = useMemo(() => {
+    const by: Record<SongReadiness, number> = {
+      none: 0,
+      can_full: 0,
+      will_try: 0,
+      need_practice: 0,
+    };
+    for (const s of songs) {
+      by[s.readiness] += 1;
+    }
+    return { all: songs.length, by };
+  }, [songs]);
 
   if (loading) {
     return (
@@ -478,18 +676,16 @@ export default function HomeScreen() {
         메모
       </ThemedText>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.readinessFilterScroll}
-        contentContainerStyle={styles.readinessFilterContent}
-      >
+      <View style={styles.readinessFilterWrap}>
         {READINESS_FILTER_CHIPS.map((chip) => {
           const selected = readinessFilter === chip.value;
           const isAll = chip.value === "all";
           const chipVisual = isAll
             ? null
             : READINESS_VISUAL[chip.value as SongReadiness];
+          const count = isAll
+            ? readinessFilterCounts.all
+            : readinessFilterCounts.by[chip.value as SongReadiness];
           return (
             <Pressable
               key={chip.value}
@@ -524,10 +720,32 @@ export default function HomeScreen() {
               >
                 {chip.label}
               </ThemedText>
+              <View
+                style={[
+                  styles.readinessFilterBadge,
+                  {
+                    backgroundColor: selected
+                      ? `${tint}33`
+                      : colorScheme === "dark"
+                        ? "#3a3a3c"
+                        : "#e5e5ea",
+                  },
+                ]}
+              >
+                <ThemedText
+                  style={{
+                    fontSize: 11,
+                    fontWeight: "700",
+                    color: selected ? tint : textColor,
+                  }}
+                >
+                  {count}
+                </ThemedText>
+              </View>
             </Pressable>
           );
         })}
-      </ScrollView>
+      </View>
 
       <FlatList
         data={filteredSongs}
@@ -547,71 +765,22 @@ export default function HomeScreen() {
         renderItem={({ item }) => {
           const idx = songs.findIndex((s) => s.id === item.id);
           return (
-            <Pressable
-              style={[
-                styles.row,
-                { borderBottomColor: listRowSeparator },
-              ]}
-              onPress={() =>
+            <SwipeableSongRow
+              item={item}
+              idx={idx}
+              songCount={songs.length}
+              rowBg={screenBg}
+              borderColor={listRowSeparator}
+              iconMuted={iconMuted}
+              onOpenDetail={() =>
                 router.push({ pathname: "/song/[id]", params: { id: item.id } })
               }
-              accessibilityRole="button"
-              accessibilityLabel={`${formatSongListTitleLine(item)} 상세 보기`}
-            >
-              <View style={styles.rowMain}>
-                <View style={styles.reorderColumn}>
-                  <Pressable
-                    onPress={() => handleMoveSongByArrows(item.id, -1)}
-                    disabled={idx <= 0}
-                    style={({ pressed }) => [
-                      styles.reorderBtn,
-                      {
-                        opacity: idx <= 0 ? 0.35 : pressed ? 0.6 : 1,
-                      },
-                    ]}
-                    accessibilityLabel="한 칸 위로"
-                  >
-                    <Ionicons name="chevron-up" size={22} color={iconMuted} />
-                  </Pressable>
-                  <Pressable
-                    onPress={() => handleMoveSongByArrows(item.id, 1)}
-                    disabled={idx >= songs.length - 1}
-                    style={({ pressed }) => [
-                      styles.reorderBtn,
-                      {
-                        opacity:
-                          idx >= songs.length - 1 ? 0.35 : pressed ? 0.6 : 1,
-                      },
-                    ]}
-                    accessibilityLabel="한 칸 아래로"
-                  >
-                    <Ionicons name="chevron-down" size={22} color={iconMuted} />
-                  </Pressable>
-                </View>
-                <SongRowDetails item={item} iconMuted={iconMuted} />
-                <Pressable
-                  onPress={() =>
-                    router.push({
-                      pathname: "/song/[id]",
-                      params: { id: item.id },
-                    })
-                  }
-                  hitSlop={12}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${formatSongListTitleLine(item)} 상세`}
-                  style={({ pressed }) => [
-                    styles.gear,
-                    { opacity: pressed ? 0.6 : 1 },
-                  ]}
-                >
-                  <Ionicons
-                    name="settings-outline"
-                    size={22}
-                    color={palette.tint}
-                  />
-                </Pressable>
-              </View>
-            </Pressable>
+              onMoveUp={() => handleMoveSongByArrows(item.id, -1)}
+              onMoveDown={() => handleMoveSongByArrows(item.id, 1)}
+              onToggleSungToday={() => void toggleSungToday(item.id)}
+              registerSwipeRef={registerSwipeRef}
+              closeOtherSwipes={closeOtherSwipes}
+            />
           );
         }}
       />
@@ -1002,26 +1171,32 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 8,
   },
-  readinessFilterScroll: {
-    marginBottom: 10,
-    maxHeight: 48,
-  },
-  readinessFilterContent: {
+  readinessFilterWrap: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: 8,
-    paddingRight: 4,
+    marginBottom: 10,
   },
   readinessFilterChip: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
     borderRadius: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
   },
   readinessFilterChipIcon: {
     marginRight: 6,
+  },
+  readinessFilterBadge: {
+    marginLeft: 6,
+    minWidth: 22,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
   },
   listContent: {
     paddingBottom: 96,
@@ -1029,7 +1204,7 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: "column",
-    paddingVertical: 10,
+    paddingVertical: 5,
     paddingHorizontal: 0,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
@@ -1037,10 +1212,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
+  swipeSungAction: {
+    width: SWIPE_SUNG_ACTION_WIDTH,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 8,
+    marginBottom: StyleSheet.hairlineWidth,
+  },
+  swipeSungActionLabel: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+    flexShrink: 1,
+  },
   rowTitleMarqueeWrap: {
     position: "relative",
     overflow: "hidden",
-    minHeight: 22,
+    minHeight: 19,
     minWidth: 0,
     justifyContent: "center",
   },
@@ -1072,10 +1262,33 @@ const styles = StyleSheet.create({
   },
   rowReadinessLine: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 6,
-    marginTop: 4,
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 2,
     minWidth: 0,
+    gap: 8,
+  },
+  rowReadinessLeft: {
+    flex: 1,
+    minWidth: 0,
+  },
+  rowReadinessMain: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 5,
+    minWidth: 0,
+  },
+  rowSungTodayBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    flexShrink: 0,
+    marginLeft: 4,
+  },
+  rowSungTodayText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#2e7d32",
   },
   rowReadinessIcon: {
     flexShrink: 0,
@@ -1083,26 +1296,22 @@ const styles = StyleSheet.create({
   rowReadinessLabel: {
     flex: 1,
     minWidth: 0,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
   },
   reorderColumn: {
-    marginRight: 8,
+    marginRight: 6,
     justifyContent: "center",
-    paddingTop: 2,
+    paddingTop: 0,
   },
   reorderBtn: {
-    paddingVertical: 2,
+    paddingVertical: 1,
     paddingHorizontal: 2,
   },
   rowTextBlock: {
     flex: 1,
     minWidth: 0,
-    paddingRight: 8,
-  },
-  gear: {
-    padding: 6,
-    marginTop: 2,
+    paddingRight: 4,
   },
   modalRoot: {
     flex: 1,

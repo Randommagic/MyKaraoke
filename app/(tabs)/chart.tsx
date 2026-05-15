@@ -1,7 +1,9 @@
 import { Image } from "expo-image";
-import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
   Modal,
   Pressable,
@@ -15,13 +17,14 @@ import { ThemedView } from "@/components/themed-view";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { logDebug } from "@/lib/debug-log-buffer";
+import { sanitizeKaraokeDigits } from "@/lib/song-form-helpers";
 import {
   ensureTjChartLoadedOnce,
   getTjChartSessionCache,
   songFromTjChartItem,
   type TjTopChartSongItem,
 } from "@/lib/tjmedia-chart";
-import { loadSongs, saveSongs } from "@/lib/songs-storage";
+import { loadSongs, saveSongs, type Song } from "@/lib/songs-storage";
 
 type ChartProvider = "tj" | "ky";
 
@@ -73,6 +76,7 @@ function ChartRow({
 }
 
 export default function PopularChartScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? "light";
   const tint = useThemeColor({}, "tint");
@@ -94,7 +98,28 @@ export default function PopularChartScreen() {
     () => getTjChartSessionCache()?.error ?? null,
   );
   const [pendingAdd, setPendingAdd] = useState<TjTopChartSongItem | null>(null);
+  const [duplicateExisting, setDuplicateExisting] = useState<Song | null>(null);
   const [savingAdd, setSavingAdd] = useState(false);
+  const [toastVisible, setToastVisible] = useState(false);
+  const toastOpacity = useRef(new Animated.Value(0)).current;
+
+  const showAddedToast = useCallback(() => {
+    setToastVisible(true);
+    toastOpacity.setValue(0);
+    Animated.sequence([
+      Animated.timing(toastOpacity, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.delay(2200),
+      Animated.timing(toastOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => setToastVisible(false));
+  }, [toastOpacity]);
 
   useEffect(() => {
     if (provider !== "tj") {
@@ -140,10 +165,22 @@ export default function PopularChartScreen() {
     setSavingAdd(true);
     try {
       const existing = await loadSongs();
+      const tjNum = sanitizeKaraokeDigits(String(pendingAdd.pro));
+      if (tjNum) {
+        const found = existing.find(
+          (s) => sanitizeKaraokeDigits(s.tjNumber) === tjNum,
+        );
+        if (found) {
+          setPendingAdd(null);
+          setDuplicateExisting(found);
+          return;
+        }
+      }
       const song = songFromTjChartItem(pendingAdd);
       await saveSongs([song, ...existing]);
       logDebug(`[chart] TJ 차트에서 추가: ${song.title}`, "info");
       setPendingAdd(null);
+      showAddedToast();
     } catch (e) {
       logDebug(
         `[chart] 리스트 추가 실패: ${e instanceof Error ? e.message : String(e)}`,
@@ -152,7 +189,17 @@ export default function PopularChartScreen() {
     } finally {
       setSavingAdd(false);
     }
-  }, [pendingAdd, savingAdd]);
+  }, [pendingAdd, savingAdd, showAddedToast]);
+
+  const formatDuplicateLine = (song: Song) => {
+    const title = song.title.trim() || "(제목 없음)";
+    const artist = song.artist.trim();
+    const tj = sanitizeKaraokeDigits(song.tjNumber);
+    const parts = [title];
+    if (artist) parts.push(artist);
+    if (tj) parts.push(`TJ ${tj}`);
+    return parts.join(" · ");
+  };
 
   return (
     <ThemedView style={[styles.root, { paddingTop: insets.top + 12 }]}>
@@ -309,6 +356,95 @@ export default function PopularChartScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <Modal
+        visible={duplicateExisting !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDuplicateExisting(null)}
+      >
+        <Pressable
+          style={styles.bubbleBackdrop}
+          onPress={() => setDuplicateExisting(null)}
+          accessibilityLabel="닫기"
+        >
+          <Pressable
+            style={[
+              styles.bubbleCard,
+              {
+                backgroundColor: colorScheme === "dark" ? "#2c2c2e" : "#fff",
+                borderColor: borderColor,
+              },
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <ThemedText type="subtitle" style={styles.bubbleTitle}>
+              이미 내 리스트에 있는 곡이에요
+            </ThemedText>
+            {duplicateExisting ? (
+              <ThemedText
+                style={[styles.bubbleSummary, { color: subColor }]}
+                numberOfLines={3}
+              >
+                {formatDuplicateLine(duplicateExisting)}
+              </ThemedText>
+            ) : null}
+            <View style={styles.bubbleActions}>
+              <Pressable
+                onPress={() => {
+                  const id = duplicateExisting?.id;
+                  setDuplicateExisting(null);
+                  if (id) {
+                    router.push({ pathname: "/song/[id]", params: { id } });
+                  }
+                }}
+                style={({ pressed }) => [
+                  styles.bubbleBtn,
+                  styles.bubbleBtnPrimary,
+                  {
+                    backgroundColor: tint,
+                    opacity: pressed ? 0.88 : 1,
+                  },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="내 곡으로 이동"
+              >
+                <ThemedText style={{ fontWeight: "700", color: "#fff" }}>
+                  내 곡으로 이동
+                </ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={() => setDuplicateExisting(null)}
+                style={({ pressed }) => [
+                  styles.bubbleBtn,
+                  styles.bubbleBtnGhost,
+                  { borderColor: borderColor, opacity: pressed ? 0.75 : 1 },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="닫기"
+              >
+                <ThemedText style={{ fontWeight: "600" }}>닫기</ThemedText>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {toastVisible ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.toast,
+            {
+              opacity: toastOpacity,
+              bottom: Math.max(insets.bottom, 12) + 56,
+              backgroundColor: colorScheme === "dark" ? "#3a3a3c" : "#323232",
+            },
+          ]}
+        >
+          <ThemedText style={styles.toastText}>리스트에 추가됐어요</ThemedText>
+        </Animated.View>
+      ) : null}
     </ThemedView>
   );
 }
@@ -434,4 +570,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   bubbleBtnPrimary: {},
+  toast: {
+    position: "absolute",
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  toastText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
 });

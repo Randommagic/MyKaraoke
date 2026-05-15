@@ -19,10 +19,18 @@ export type SongGenderKey = "male" | "female" | "unset";
 export type SongReadiness = "none" | "can_full" | "will_try" | "need_practice";
 
 export const SONG_READINESS_OPTIONS: { value: SongReadiness; label: string }[] = [
-  { value: "none", label: "속성없음" },
-  { value: "can_full", label: "완창가능" },
-  { value: "will_try", label: "시도예정" },
-  { value: "need_practice", label: "연습필요" },
+  { value: "none", label: "미정" },
+  { value: "can_full", label: "완창" },
+  { value: "will_try", label: "시도" },
+  { value: "need_practice", label: "연습" },
+];
+
+/** 상세 화면 슬라이더 순서: 미정 → 완창 → 연습 → 시도 */
+export const READINESS_SLIDER_ORDER: SongReadiness[] = [
+  "none",
+  "can_full",
+  "need_practice",
+  "will_try",
 ];
 
 export type Song = {

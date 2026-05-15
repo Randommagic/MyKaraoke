@@ -62,10 +62,31 @@ export function localYmd(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+export function isSungToday(ymd: string): boolean {
+  const s = ymd.trim();
+  if (!s) return false;
+  return s === localYmd(new Date());
+}
+
 export function formatLastSungLine(ymd: string): string {
   const s = ymd.trim();
   if (!s) return "";
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
   if (!m) return `마지막: ${s}`;
-  return `마지막: ${Number(m[1])}. ${Number(m[2])}. ${Number(m[3])}.`;
+  const y = Number(m[1]);
+  const mon = Number(m[2]) - 1;
+  const day = Number(m[3]);
+  const sungStart = new Date(y, mon, day);
+  if (Number.isNaN(sungStart.getTime())) return `마지막: ${s}`;
+
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffDays = Math.floor(
+    (todayStart.getTime() - sungStart.getTime()) / 86400000,
+  );
+
+  const dotted = `${m[1]}.${m[2]}.${m[3]}`;
+  if (diffDays === 0) return `오늘 (${dotted})`;
+  if (diffDays > 0) return `${diffDays}일 전 (${dotted})`;
+  return `${-diffDays}일 후 (${dotted})`;
 }
