@@ -156,7 +156,7 @@ export function songFromTjChartItem(item: TjTopChartSongItem): Song {
     kyNumber: "",
     memo: "",
     youtubeUrl: "",
-    lastSungAt: "",
+    sungDates: [],
     readiness: "none",
     genderKey: "unset",
     transposeSemitones: 0,

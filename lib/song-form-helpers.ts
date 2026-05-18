@@ -1,6 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 
-import type { Song, SongGenderKey, SongReadiness } from "@/lib/songs-storage";
+import {
+  normalizeSungDates,
+  type Song,
+  type SongGenderKey,
+  type SongReadiness,
+} from "@/lib/songs-storage";
 
 export const GENDER_OPTIONS: { value: SongGenderKey; label: string }[] = [
   { value: "unset", label: "미정" },
@@ -62,10 +67,47 @@ export function localYmd(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-export function isSungToday(ymd: string): boolean {
+/** 가장 최근 부른 날 (카드·라벨 표시용) */
+export function getPrimarySungDate(sungDates: string[]): string {
+  return normalizeSungDates(sungDates)[0] ?? "";
+}
+
+export function isSungToday(sungDates: string[]): boolean {
+  const today = localYmd(new Date());
+  return normalizeSungDates(sungDates).includes(today);
+}
+
+/** 오늘 기준 며칠 전에 불렀는지. 유효하지 않으면 `null` */
+export function daysSinceLastSung(ymd: string): number | null {
   const s = ymd.trim();
-  if (!s) return false;
-  return s === localYmd(new Date());
+  if (!s) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mon = Number(m[2]) - 1;
+  const day = Number(m[3]);
+  const sungStart = new Date(y, mon, day);
+  if (Number.isNaN(sungStart.getTime())) return null;
+
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.floor((todayStart.getTime() - sungStart.getTime()) / 86400000);
+}
+
+export type LastSungRecencyLabel = "오늘" | "7일 이내" | "30일 이내";
+
+/** 곡 카드용: 가장 최근 부른 날 기준 */
+export function getLastSungRecencyLabel(
+  sungDates: string[],
+): LastSungRecencyLabel | null {
+  const primary = getPrimarySungDate(sungDates);
+  if (!primary) return null;
+  const diffDays = daysSinceLastSung(primary);
+  if (diffDays === null || diffDays < 0) return null;
+  if (diffDays === 0) return "오늘";
+  if (diffDays <= 7) return "7일 이내";
+  if (diffDays <= 30) return "30일 이내";
+  return null;
 }
 
 export function formatLastSungLine(ymd: string): string {
@@ -73,20 +115,19 @@ export function formatLastSungLine(ymd: string): string {
   if (!s) return "";
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
   if (!m) return `마지막: ${s}`;
-  const y = Number(m[1]);
-  const mon = Number(m[2]) - 1;
-  const day = Number(m[3]);
-  const sungStart = new Date(y, mon, day);
-  if (Number.isNaN(sungStart.getTime())) return `마지막: ${s}`;
 
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const diffDays = Math.floor(
-    (todayStart.getTime() - sungStart.getTime()) / 86400000,
-  );
+  const diffDays = daysSinceLastSung(s);
+  if (diffDays === null) return `마지막: ${s}`;
 
   const dotted = `${m[1]}.${m[2]}.${m[3]}`;
   if (diffDays === 0) return `오늘 (${dotted})`;
   if (diffDays > 0) return `${diffDays}일 전 (${dotted})`;
   return `${-diffDays}일 후 (${dotted})`;
+}
+
+/** 상세 화면: 저장된 부른 날(최대 2개) 요약 */
+export function formatSungDatesLine(sungDates: string[]): string {
+  const dates = normalizeSungDates(sungDates);
+  if (dates.length === 0) return "";
+  return dates.map((d) => formatLastSungLine(d)).join(" · ");
 }

@@ -24,9 +24,10 @@ import { useThemeColor } from "@/hooks/use-theme-color";
 import { logDebug } from "@/lib/debug-log-buffer";
 import {
   buildYoutubeOpenUrl,
-  formatLastSungLine,
+  formatSungDatesLine,
   formatTranspose,
   GENDER_OPTIONS,
+  isSungToday,
   localYmd,
   READINESS_VISUAL,
   sanitizeKaraokeDigits,
@@ -36,6 +37,7 @@ import {
   READINESS_SLIDER_ORDER,
   saveSongs,
   SONG_READINESS_OPTIONS,
+  toggleSungTodayInDates,
   type Song,
   type SongGenderKey,
   type SongImportSource,
@@ -267,7 +269,7 @@ export default function SongDetailScreen() {
   const [draftGender, setDraftGender] = useState<SongGenderKey>("unset");
   const [draftReadiness, setDraftReadiness] = useState<SongReadiness>("none");
   const [draftTranspose, setDraftTranspose] = useState(0);
-  const [lastSungAt, setLastSungAt] = useState("");
+  const [sungDates, setSungDates] = useState<string[]>([]);
   const [importSource, setImportSource] = useState<SongImportSource>("manual");
 
   const inputSurfaceStyle = useMemo(
@@ -289,7 +291,7 @@ export default function SongDetailScreen() {
     setDraftGender(s.genderKey);
     setDraftReadiness(s.readiness);
     setDraftTranspose(s.transposeSemitones);
-    setLastSungAt(s.lastSungAt);
+    setSungDates(s.sungDates);
     setImportSource(s.importSource);
   }, []);
 
@@ -418,18 +420,19 @@ export default function SongDetailScreen() {
   const markSungToday = useCallback(async () => {
     if (!songId) return;
     const day = localYmd(new Date());
+    const nextDates = toggleSungTodayInDates(sungDates, day);
     try {
       const list = await loadSongs();
       const next = list.map((s) =>
-        s.id === songId ? { ...s, lastSungAt: day } : s,
+        s.id === songId ? { ...s, sungDates: nextDates } : s,
       );
       await saveSongs(next);
-      setLastSungAt(day);
-      logDebug(`[song/${songId}] 오늘 부름 저장`, "info");
+      setSungDates(nextDates);
+      logDebug(`[song/${songId}] 오늘 부름 토글`, "info");
     } catch {
       logDebug("[song] 오늘 부름 저장 실패", "warn");
     }
-  }, [songId]);
+  }, [songId, sungDates]);
 
   if (!songId) {
     return (
@@ -684,8 +687,8 @@ export default function SongDetailScreen() {
 
           <View style={styles.sungBlock}>
             <ThemedText style={[styles.sungHint, { color: iconMuted }]}>
-              {lastSungAt.trim()
-                ? formatLastSungLine(lastSungAt)
+              {sungDates.length > 0
+                ? formatSungDatesLine(sungDates)
                 : "마지막으로 부른 날: 없음"}
             </ThemedText>
             <Pressable
@@ -693,19 +696,28 @@ export default function SongDetailScreen() {
               style={({ pressed }) => [
                 styles.sungBtn,
                 {
-                  borderColor: iconMuted,
+                  borderColor: isSungToday(sungDates) ? tint : iconMuted,
                   opacity: pressed ? 0.85 : 1,
-                  backgroundColor:
-                    colorScheme === "dark" ? "#2c2c2e" : "#f5f5f5",
+                  backgroundColor: isSungToday(sungDates)
+                    ? `${tint}18`
+                    : colorScheme === "dark"
+                      ? "#2c2c2e"
+                      : "#f5f5f5",
                 },
               ]}
             >
-              <Ionicons name="checkmark-circle" size={22} color={tint} />
+              <Ionicons
+                name={
+                  isSungToday(sungDates) ? "checkmark-circle" : "ellipse-outline"
+                }
+                size={22}
+                color={isSungToday(sungDates) ? tint : iconMuted}
+              />
               <ThemedText
                 type="defaultSemiBold"
                 style={{ marginLeft: 10, color: textColor }}
               >
-                오늘 불렀음
+                {isSungToday(sungDates) ? "오늘 부름 취소" : "오늘 불렀음"}
               </ThemedText>
             </Pressable>
           </View>

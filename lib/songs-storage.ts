@@ -56,8 +56,8 @@ export type Song = {
   memo: string;
   /** YouTube 영상 링크 (https… 또는 youtu.be 등, 비우면 카드에 버튼 없음) */
   youtubeUrl: string;
-  /** 마지막으로 부른 날짜 `YYYY-MM-DD` (로컬), 없으면 빈 문자열 */
-  lastSungAt: string;
+  /** 부른 날 `YYYY-MM-DD` (최신순, 최대 {@link MAX_SUNG_DATES}개) */
+  sungDates: string[];
   /** 연습·완창 준비도 */
   readiness: SongReadiness;
   genderKey: SongGenderKey;
@@ -66,6 +66,8 @@ export type Song = {
   /** 추가·가져오기 경로 */
   importSource: SongImportSource;
 };
+
+export const MAX_SUNG_DATES = 2;
 
 export function createSongId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -84,7 +86,7 @@ export function createSongFromYoutubeImport(
     kyNumber: "",
     memo: "",
     youtubeUrl: normalizeYoutubeUrlForStorage(youtubeWatchUrl),
-    lastSungAt: "",
+    sungDates: [],
     readiness: "none",
     genderKey: "unset",
     transposeSemitones: 0,
@@ -125,10 +127,47 @@ function normalizeKaraokeNumber(value: string): string {
 }
 
 /** `YYYY-MM-DD` 형태만 허용 (앞 10자만 사용해 ISO 문자열도 수용) */
-function normalizeLastSungAt(value: string): string {
+export function normalizeSungDateYmd(value: string): string {
   const s = value.trim().slice(0, 10);
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
   return "";
+}
+
+/** 저장·로드용: 유효 날짜만, 최신순, 최대 2개. 예전 `lastSungAt` 단일 필드도 흡수 */
+export function normalizeSungDates(
+  value: unknown,
+  legacyLastSungAt?: string,
+): string[] {
+  const raw: string[] = [];
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (typeof item === "string") raw.push(item);
+    }
+  }
+  const legacy = normalizeSungDateYmd(legacyLastSungAt ?? "");
+  if (legacy) raw.push(legacy);
+
+  const valid = raw
+    .map((d) => normalizeSungDateYmd(d))
+    .filter((d) => d.length > 0);
+  const unique = [...new Set(valid)];
+  unique.sort((a, b) => b.localeCompare(a));
+  return unique.slice(0, MAX_SUNG_DATES);
+}
+
+/** 홈 스와이프: 오늘 부름 추가/취소 (취소 시 이전 날짜가 다시 표시됨) */
+export function toggleSungTodayInDates(
+  sungDates: string[],
+  todayYmd: string,
+): string[] {
+  const today = normalizeSungDateYmd(todayYmd);
+  if (!today) return normalizeSungDates(sungDates);
+
+  const current = normalizeSungDates(sungDates);
+  if (current.includes(today)) {
+    return current.filter((d) => d !== today);
+  }
+  return [today, ...current.filter((d) => d !== today)].slice(0, MAX_SUNG_DATES);
 }
 
 async function readRawJson(options?: { silent?: boolean }): Promise<string | null> {
@@ -197,15 +236,8 @@ async function writeRawJson(json: string): Promise<void> {
   logDebug(`[storage] 쓰기 OK (${json.length}자) ${uri}`, "info");
 }
 
-function parseSongs(raw: string | null): Song[] {
-  if (!raw) return [];
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw) as unknown;
-  } catch (e) {
-    logDebug(`[storage] JSON 파싱 실패: ${String(e)}`, "error");
-    return [];
-  }
+/** 백업·가져오기 등 JSON 배열(또는 그에 해당하는 unknown) → `Song[]` */
+export function parseSongsFromUnknown(parsed: unknown): Song[] {
   if (!Array.isArray(parsed)) return [];
   return parsed
     .filter((row): row is Record<string, unknown> => {
@@ -227,7 +259,8 @@ function parseSongs(raw: string | null): Song[] {
       youtubeUrl: normalizeYoutubeUrlForStorage(
         readString(row, "youtubeUrl") || readString(row, "youtubeLink"),
       ),
-      lastSungAt: normalizeLastSungAt(
+      sungDates: normalizeSungDates(
+        (row as Record<string, unknown>).sungDates,
         readString(row, "lastSungAt") || readString(row, "lastSungDate"),
       ),
       readiness: normalizeReadiness((row as Record<string, unknown>).readiness),
@@ -240,6 +273,16 @@ function parseSongs(raw: string | null): Song[] {
         (row as Record<string, unknown>).importSource,
       ),
     }));
+}
+
+function parseSongs(raw: string | null): Song[] {
+  if (!raw) return [];
+  try {
+    return parseSongsFromUnknown(JSON.parse(raw) as unknown);
+  } catch (e) {
+    logDebug(`[storage] JSON 파싱 실패: ${String(e)}`, "error");
+    return [];
+  }
 }
 
 export async function loadSongs(): Promise<Song[]> {
@@ -272,7 +315,13 @@ export async function saveSongs(songs: Song[]): Promise<void> {
   }
 }
 
-/** 로그 탭에서 호출: 파일 API·경로 점검 (곡 데이터는 바꾸지 않음) */
+/** 설정: 전체 곡 데이터 삭제 (빈 배열로 저장) */
+export async function resetAllSongs(): Promise<void> {
+  await saveSongs([]);
+  logDebug("[storage] resetAllSongs 완료", "info");
+}
+
+/** 설정 > 로그에서 호출: 파일 API·경로 점검 (곡 데이터는 바꾸지 않음) */
 export async function runStorageDiagnostics(): Promise<string[]> {
   const lines: string[] = [];
   const line = (s: string) => {
@@ -330,7 +379,7 @@ export async function runStorageDiagnostics(): Promise<string[]> {
   return lines;
 }
 
-/** 디버그 탭: 저장소에 들어 있는 JSON 원문(또는 예쁘게 포맷) 조회만, 로그는 최소화 */
+/** 설정 > 로그: 저장소에 들어 있는 JSON 원문(또는 예쁘게 포맷) 조회만, 로그는 최소화 */
 export async function readRawSongsStorageForDebug(): Promise<{
   pathLabel: string;
   raw: string | null;

@@ -39,6 +39,7 @@ import {
   formatTranspose,
   formatTransposeForSongCard,
   GENDER_OPTIONS,
+  getLastSungRecencyLabel,
   isSungToday,
   localYmd,
   READINESS_VISUAL,
@@ -48,6 +49,7 @@ import {
   createSongId,
   loadSongs,
   saveSongs,
+  toggleSungTodayInDates,
   SONG_READINESS_OPTIONS,
   type Song,
   type SongGenderKey,
@@ -424,7 +426,7 @@ function SongRowDetails({
   item: Song;
   iconMuted: string;
 }) {
-  const sungToday = isSungToday(item.lastSungAt);
+  const lastSungLabel = getLastSungRecencyLabel(item.sungDates);
   const showReadinessTag = item.readiness !== "none";
   const readinessLabel =
     SONG_READINESS_OPTIONS.find((o) => o.value === item.readiness)?.label ?? "";
@@ -489,10 +491,10 @@ function SongRowDetails({
             </View>
           ) : null}
         </View>
-        {sungToday ? (
+        {lastSungLabel ? (
           <View style={styles.rowSungTodayBadge}>
             <Ionicons name="mic" size={16} color="#2e7d32" />
-            <Text style={styles.rowSungTodayText}>오늘</Text>
+            <Text style={styles.rowSungTodayText}>{lastSungLabel}</Text>
           </View>
         ) : null}
       </View>
@@ -532,7 +534,7 @@ function SwipeableSongRow({
   onDisabledDragAttempt: () => void;
 }) {
   const swipeRef = useRef<Swipeable | null>(null);
-  const sungToday = isSungToday(item.lastSungAt);
+  const sungToday = isSungToday(item.sungDates);
 
   const renderLeftActions = (
     progress: Animated.AnimatedInterpolation<number>,
@@ -797,7 +799,7 @@ export default function HomeScreen() {
         kyNumber,
         memo,
         youtubeUrl,
-        lastSungAt: "",
+        sungDates: [],
         readiness: draftReadiness,
         genderKey: draftGender,
         transposeSemitones: transpose,
@@ -874,7 +876,7 @@ export default function HomeScreen() {
         if (s.id !== songId) return s;
         return {
           ...s,
-          lastSungAt: s.lastSungAt.trim() === today ? "" : today,
+          sungDates: toggleSungTodayInDates(s.sungDates, today),
         };
       });
       try {
@@ -949,9 +951,7 @@ export default function HomeScreen() {
 
   return (
     <ThemedView style={[styles.screen, { paddingTop: insets.top }]}>
-      <ThemedText type="title" style={styles.headline}>
-        메모
-      </ThemedText>
+      <View style={styles.topSpacer} />
 
       <ReadinessFilterScroller
         readinessFilter={readinessFilter}
@@ -1356,9 +1356,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  headline: {
-    marginTop: 8,
-    marginBottom: 16,
+  topSpacer: {
+    height: 12,
+    marginBottom: 12,
   },
   listFlex: {
     flex: 1,

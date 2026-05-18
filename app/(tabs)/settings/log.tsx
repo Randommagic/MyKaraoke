@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -42,10 +42,10 @@ function levelColor(
   }
 }
 
-export default function DebugLogScreen() {
+export default function SettingsLogScreen() {
+  const navigation = useNavigation();
   const colorScheme = useColorScheme() ?? "light";
   const palette = Colors[colorScheme];
-  const insets = useSafeAreaInsets();
   const tint = useThemeColor({}, "tint");
   const text = useThemeColor({}, "text");
   const iconMuted = useThemeColor({}, "icon");
@@ -69,6 +69,25 @@ export default function DebugLogScreen() {
     setRawPathLabel(null);
     setRawFormatted(null);
   }, []);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <Pressable
+          onPress={onClear}
+          hitSlop={8}
+          style={({ pressed }) => [
+            styles.clearBtn,
+            { borderColor: palette.tint, opacity: pressed ? 0.7 : 1 },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="비우기"
+        >
+          <ThemedText style={{ color: tint, fontWeight: "600" }}>비우기</ThemedText>
+        </Pressable>
+      ),
+    });
+  }, [navigation, onClear, palette.tint, tint]);
 
   const onLoadRawFile = useCallback(async () => {
     setRawLoading(true);
@@ -122,109 +141,105 @@ export default function DebugLogScreen() {
   const listHeader = useMemo(
     () => (
       <View style={styles.headerBlock}>
-      <ThemedText style={[styles.hint, { color: iconMuted }]}>
-        아래는 앱이 직접 남기는 로그와,{" "}
-        <ThemedText type="defaultSemiBold">console.*</ThemedText> 후킹 결과입니다.
-        Metro 터미널·OS 네이티브 로그는 기본적으로 여기에 안 나옵니다.
-      </ThemedText>
+        <ThemedText style={[styles.hint, { color: iconMuted }]}>
+          아래는 앱이 직접 남기는 로그와,{" "}
+          <ThemedText type="defaultSemiBold">console.*</ThemedText> 후킹 결과입니다.
+          Metro 터미널·OS 네이티브 로그는 기본적으로 여기에 안 나옵니다.
+        </ThemedText>
 
-      <View style={styles.diagRow}>
-        <Pressable
-          onPress={onRunDiag}
-          disabled={diagRunning}
-          style={({ pressed }) => [
-            styles.diagBtn,
-            {
-              borderColor: palette.tint,
-              opacity: diagRunning ? 0.5 : pressed ? 0.85 : 1,
-            },
-          ]}
-        >
-          {diagRunning ? (
-            <ActivityIndicator color={tint} />
-          ) : (
-            <ThemedText style={{ color: tint, fontWeight: "700" }}>
-              저장소 점검
+        <View style={styles.diagRow}>
+          <Pressable
+            onPress={onRunDiag}
+            disabled={diagRunning}
+            style={({ pressed }) => [
+              styles.diagBtn,
+              {
+                borderColor: palette.tint,
+                opacity: diagRunning ? 0.5 : pressed ? 0.85 : 1,
+              },
+            ]}
+          >
+            {diagRunning ? (
+              <ActivityIndicator color={tint} />
+            ) : (
+              <ThemedText style={{ color: tint, fontWeight: "700" }}>
+                저장소 점검
+              </ThemedText>
+            )}
+          </Pressable>
+          <Pressable
+            onPress={onLoadRawFile}
+            disabled={rawLoading}
+            style={({ pressed }) => [
+              styles.diagBtn,
+              styles.diagBtnSecond,
+              {
+                borderColor: palette.tint,
+                opacity: rawLoading ? 0.5 : pressed ? 0.85 : 1,
+              },
+            ]}
+          >
+            {rawLoading ? (
+              <ActivityIndicator color={tint} />
+            ) : (
+              <ThemedText style={{ color: tint, fontWeight: "700" }}>
+                곡 파일 내용
+              </ThemedText>
+            )}
+          </Pressable>
+        </View>
+
+        {diagLines && diagLines.length > 0 ? (
+          <View
+            style={[
+              styles.diagResult,
+              { borderColor: iconMuted, backgroundColor: `${iconMuted}18` },
+            ]}
+          >
+            <ThemedText type="defaultSemiBold" style={{ marginBottom: 6 }}>
+              점검 결과
             </ThemedText>
-          )}
-        </Pressable>
-        <Pressable
-          onPress={onLoadRawFile}
-          disabled={rawLoading}
-          style={({ pressed }) => [
-            styles.diagBtn,
-            styles.diagBtnSecond,
-            {
-              borderColor: palette.tint,
-              opacity: rawLoading ? 0.5 : pressed ? 0.85 : 1,
-            },
-          ]}
-        >
-          {rawLoading ? (
-            <ActivityIndicator color={tint} />
-          ) : (
-            <ThemedText style={{ color: tint, fontWeight: "700" }}>
-              곡 파일 내용
+            {diagLines.map((l, i) => (
+              <Text
+                key={`${i}-${l.slice(0, 40)}`}
+                style={[styles.diagLine, { color: text }]}
+                selectable
+              >
+                {l}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+
+        {rawPathLabel != null && rawFormatted != null ? (
+          <View
+            style={[
+              styles.rawFileBox,
+              { borderColor: iconMuted, backgroundColor: `${iconMuted}10` },
+            ]}
+          >
+            <ThemedText type="defaultSemiBold" style={{ marginBottom: 4 }}>
+              저장된 곡 JSON
             </ThemedText>
-          )}
-        </Pressable>
+            <Text
+              style={[styles.rawPath, { color: iconMuted }]}
+              selectable
+              numberOfLines={3}
+            >
+              {rawPathLabel}
+            </Text>
+            <ScrollView
+              style={styles.rawScroll}
+              nestedScrollEnabled
+              showsVerticalScrollIndicator
+            >
+              <Text style={[styles.rawContent, { color: text }]} selectable>
+                {rawFormatted}
+              </Text>
+            </ScrollView>
+          </View>
+        ) : null}
       </View>
-
-      {diagLines && diagLines.length > 0 ? (
-        <View
-          style={[
-            styles.diagResult,
-            { borderColor: iconMuted, backgroundColor: `${iconMuted}18` },
-          ]}
-        >
-          <ThemedText type="defaultSemiBold" style={{ marginBottom: 6 }}>
-            점검 결과
-          </ThemedText>
-          {diagLines.map((l, i) => (
-            <Text
-              key={`${i}-${l.slice(0, 40)}`}
-              style={[styles.diagLine, { color: text }]}
-              selectable
-            >
-              {l}
-            </Text>
-          ))}
-        </View>
-      ) : null}
-
-      {rawPathLabel != null && rawFormatted != null ? (
-        <View
-          style={[
-            styles.rawFileBox,
-            { borderColor: iconMuted, backgroundColor: `${iconMuted}10` },
-          ]}
-        >
-          <ThemedText type="defaultSemiBold" style={{ marginBottom: 4 }}>
-            저장된 곡 JSON
-          </ThemedText>
-          <Text
-            style={[styles.rawPath, { color: iconMuted }]}
-            selectable
-            numberOfLines={3}
-          >
-            {rawPathLabel}
-          </Text>
-          <ScrollView
-            style={styles.rawScroll}
-            nestedScrollEnabled
-            showsVerticalScrollIndicator
-          >
-            <Text
-              style={[styles.rawContent, { color: text }]}
-              selectable
-            >
-              {rawFormatted}
-            </Text>
-          </ScrollView>
-        </View>
-      ) : null}
-
-    </View>
     ),
     [
       diagLines,
@@ -242,20 +257,7 @@ export default function DebugLogScreen() {
   );
 
   return (
-    <ThemedView style={[styles.screen, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <ThemedText type="subtitle">로그 (디버그)</ThemedText>
-        <Pressable
-          onPress={onClear}
-          style={({ pressed }) => [
-            styles.clearBtn,
-            { borderColor: palette.tint, opacity: pressed ? 0.7 : 1 },
-          ]}
-        >
-          <ThemedText style={{ color: tint, fontWeight: "600" }}>비우기</ThemedText>
-        </Pressable>
-      </View>
-
+    <ThemedView style={styles.screen}>
       <FlatList
         data={logs}
         keyExtractor={(item) => item.id}
@@ -278,20 +280,15 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 12,
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 10,
-  },
   headerBlock: {
     marginBottom: 12,
   },
   clearBtn: {
     borderWidth: 1,
     borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginRight: 4,
   },
   hint: {
     fontSize: 12,

@@ -1,3 +1,4 @@
+import { useFocusEffect } from "@react-navigation/native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -35,12 +36,14 @@ function ChartRow({
   borderColor,
   subColor,
   rankColor,
+  isInList,
   onPress,
 }: {
   item: TjTopChartSongItem;
   borderColor: string;
   subColor: string;
   rankColor: string;
+  isInList: boolean;
   onPress: () => void;
 }) {
   const uri = item.imgthumb_path?.trim();
@@ -53,7 +56,7 @@ function ChartRow({
         { borderBottomColor: borderColor, opacity: pressed ? 0.75 : 1 },
       ]}
       accessibilityRole="button"
-      accessibilityLabel={`${rankLabel}위 ${item.indexTitle} ${item.indexSong}, 차트에서 선택`}
+      accessibilityLabel={`${rankLabel}위 ${item.indexTitle} ${item.indexSong}${isInList ? ", 이미 내 리스트에 있음" : ""}, 차트에서 선택`}
     >
       <View style={styles.rankCol}>
         <ThemedText
@@ -84,6 +87,14 @@ function ChartRow({
           {item.indexSong}
         </ThemedText>
       </View>
+      {isInList ? (
+        <ThemedText
+          style={styles.inListCheck}
+          accessibilityLabel="내 리스트에 추가됨"
+        >
+          ✓
+        </ThemedText>
+      ) : null}
     </Pressable>
   );
 }
@@ -114,6 +125,7 @@ export default function PopularChartScreen() {
   const [duplicateExisting, setDuplicateExisting] = useState<Song | null>(null);
   const [savingAdd, setSavingAdd] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
+  const [mySongs, setMySongs] = useState<Song[]>([]);
   const [tjPeriod, setTjPeriod] = useState(() => {
     const cached = getTjChartSessionCache();
     const q = buildDefaultTjTopAndHotQuery();
@@ -127,6 +139,28 @@ export default function PopularChartScreen() {
   const tjPeriodSubtitle = useMemo(
     () => formatTjChartPeriodSubtitle(tjPeriod.start, tjPeriod.end),
     [tjPeriod.end, tjPeriod.start],
+  );
+
+  const addedTjNumbers = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of mySongs) {
+      const tj = sanitizeKaraokeDigits(s.tjNumber);
+      if (tj) set.add(tj);
+    }
+    return set;
+  }, [mySongs]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      void (async () => {
+        const list = await loadSongs();
+        if (!cancelled) setMySongs(list);
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, []),
   );
 
   const showAddedToast = useCallback(() => {
@@ -211,7 +245,9 @@ export default function PopularChartScreen() {
         }
       }
       const song = songFromTjChartItem(pendingAdd);
-      await saveSongs([song, ...existing]);
+      const next = [song, ...existing];
+      await saveSongs(next);
+      setMySongs(next);
       logDebug(`[chart] TJ 차트에서 추가: ${song.title}`, "info");
       setPendingAdd(null);
       showAddedToast();
@@ -302,15 +338,20 @@ export default function PopularChartScreen() {
           data={items}
           keyExtractor={(it) => `${it.pro}-${it.rank}`}
           contentContainerStyle={styles.listContent}
-          renderItem={({ item }) => (
-            <ChartRow
-              item={item}
-              borderColor={borderColor}
-              subColor={subColor}
-              rankColor={textColor}
-              onPress={() => setPendingAdd(item)}
-            />
-          )}
+          renderItem={({ item }) => {
+            const tjNum = sanitizeKaraokeDigits(String(item.pro));
+            const isInList = Boolean(tjNum && addedTjNumbers.has(tjNum));
+            return (
+              <ChartRow
+                item={item}
+                borderColor={borderColor}
+                subColor={subColor}
+                rankColor={textColor}
+                isInList={isInList}
+                onPress={() => setPendingAdd(item)}
+              />
+            );
+          }}
         />
       )}
 
@@ -563,6 +604,13 @@ const styles = StyleSheet.create({
   },
   artist: {
     fontSize: 14,
+  },
+  inListCheck: {
+    fontSize: 20,
+    lineHeight: 22,
+    fontWeight: "700",
+    color: "#34c759",
+    marginLeft: 2,
   },
   bubbleBackdrop: {
     flex: 1,
