@@ -6,7 +6,6 @@ import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Dimensions,
   KeyboardAvoidingView,
@@ -26,6 +25,10 @@ import DraggableFlatList, {
 } from "react-native-draggable-flatlist";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import {
+  useConfirm,
+  type ConfirmFn,
+} from "@/components/design/confirm-dialog-context";
 import { DesignColors } from "@/components/design/colors";
 import { ScreenTitle } from "@/components/design/ScreenTitle";
 import {
@@ -77,17 +80,6 @@ const READINESS_FILTER_CHIPS: { value: ReadinessFilter; label: string }[] = [
     return { value, label: opt.label };
   }),
 ];
-
-function confirmDeleteSongAlert(onDelete: () => void) {
-  Alert.alert("삭제하시겠습니까?", "", [
-    { text: "취소", style: "cancel" },
-    {
-      text: "삭제",
-      style: "destructive",
-      onPress: onDelete,
-    },
-  ]);
-}
 
 const FILTER_SCROLL_EDGE_THRESHOLD = 8;
 const FILTER_FADE_WIDTH = 36;
@@ -221,6 +213,7 @@ function SwipeableSongRow({
   onOpenDetail,
   onToggleSungToday,
   onRequestDelete,
+  confirm,
   registerSwipeRef,
   closeOtherSwipes,
   drag,
@@ -234,6 +227,7 @@ function SwipeableSongRow({
   onOpenDetail: () => void;
   onToggleSungToday: () => void;
   onRequestDelete: () => void;
+  confirm: ConfirmFn;
   registerSwipeRef: (id: string, ref: Swipeable | null) => void;
   closeOtherSwipes: (id: string) => void;
   drag: () => void;
@@ -334,10 +328,15 @@ function SwipeableSongRow({
             onSwipeableWillOpen={() => closeOtherSwipes(item.id)}
             onSwipeableOpen={(direction) => {
               swipeRef.current?.close();
-              if (direction === "left") {
-                confirmDeleteSongAlert(onRequestDelete);
-                return;
-              }
+          if (direction === "left") {
+            confirm({
+              title: "삭제하시겠습니까?",
+              confirmLabel: "삭제",
+              destructive: true,
+              onConfirm: onRequestDelete,
+            });
+            return;
+          }
               if (direction !== "right") return;
               if (Platform.OS !== "web") {
                 void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -367,6 +366,7 @@ function SwipeableSongRow({
 const CREATE_MODAL_ID = "__create__";
 
 export default function HomeScreen() {
+  const confirm = useConfirm();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? "light";
   const insets = useSafeAreaInsets();
@@ -679,6 +679,7 @@ export default function HomeScreen() {
           <SwipeableSongRow
             item={item}
             iconMuted={iconMuted}
+            confirm={confirm}
             onOpenDetail={() =>
               router.push({ pathname: "/song/[id]", params: { id: item.id } })
             }

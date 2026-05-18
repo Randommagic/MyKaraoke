@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCallback, useMemo } from "react";
-import { Alert, Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useConfirm } from "@/components/design/confirm-dialog-context";
 import { ScreenTitle } from "@/components/design/ScreenTitle";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -40,18 +41,8 @@ const MENU_ITEMS: SettingsMenuItem[] = [
 
 const DANGER_COLOR = { light: "#c62828", dark: "#ff8a80" } as const;
 
-function confirmResetAllSongsAlert(onConfirm: () => void) {
-  Alert.alert(
-    "데이터 초기화",
-    "전체 곡 데이터를 초기화하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
-    [
-      { text: "취소", style: "cancel" },
-      { text: "초기화", style: "destructive", onPress: onConfirm },
-    ],
-  );
-}
-
 export default function SettingsScreen() {
+  const confirm = useConfirm();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? "light";
@@ -69,24 +60,39 @@ export default function SettingsScreen() {
   const dangerColor = DANGER_COLOR[colorScheme];
 
   const onResetData = useCallback(() => {
-    confirmResetAllSongsAlert(() => {
-      void (async () => {
-        try {
-          await resetAllSongs();
-          Alert.alert("초기화 완료", "전체 곡 데이터가 삭제되었습니다.");
-        } catch (e) {
-          logDebug(
-            `[settings]데이터 초기화 실패: ${e instanceof Error ? e.message : String(e)}`,
-            "error",
-          );
-          Alert.alert(
-            "초기화 실패",
-            "데이터를 지우지 못했습니다. 잠시 후 다시 시도해 주세요.",
-          );
-        }
-      })();
+    confirm({
+      title: "데이터 초기화",
+      message:
+        "전체 곡 데이터를 초기화하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+      confirmLabel: "초기화",
+      destructive: true,
+      onConfirm: () => {
+        void (async () => {
+          try {
+            await resetAllSongs();
+            confirm({
+              title: "초기화 완료",
+              message: "전체 곡 데이터가 삭제되었습니다.",
+              alert: true,
+              onConfirm: () => {},
+            });
+          } catch (e) {
+            logDebug(
+              `[settings]데이터 초기화 실패: ${e instanceof Error ? e.message : String(e)}`,
+              "error",
+            );
+            confirm({
+              title: "초기화 실패",
+              message:
+                "데이터를 지우지 못했습니다. 잠시 후 다시 시도해 주세요.",
+              alert: true,
+              onConfirm: () => {},
+            });
+          }
+        })();
+      },
     });
-  }, []);
+  }, [confirm]);
 
   return (
     <ThemedView style={[styles.root, { paddingTop: insets.top + 12 }]}>

@@ -4,7 +4,6 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Linking,
   PanResponder,
@@ -17,6 +16,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useConfirm } from "@/components/design/confirm-dialog-context";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -246,6 +246,7 @@ function SongDetailYoutubeThumb({
 }
 
 export default function SongDetailScreen() {
+  const confirm = useConfirm();
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string | string[] }>();
   const songId =
@@ -731,14 +732,12 @@ export default function SongDetailScreen() {
         >
           <Pressable
             onPress={() =>
-              Alert.alert("삭제하시겠습니까?", "", [
-                { text: "취소", style: "cancel" },
-                {
-                  text: "삭제",
-                  style: "destructive",
-                  onPress: () => void handleDelete(),
-                },
-              ])
+              confirm({
+                title: "삭제하시겠습니까?",
+                confirmLabel: "삭제",
+                destructive: true,
+                onConfirm: () => void handleDelete(),
+              })
             }
             style={({ pressed }) => [
               styles.textBtn,

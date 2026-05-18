@@ -2,7 +2,6 @@ import * as Clipboard from "expo-clipboard";
 import { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Pressable,
   StyleSheet,
@@ -10,6 +9,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useConfirm } from "@/components/design/confirm-dialog-context";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -22,23 +22,8 @@ import {
 } from "@/lib/songs-backup";
 import { loadSongs, saveSongs } from "@/lib/songs-storage";
 
-function confirmImportAlert(
-  importedCount: number,
-  previousCount: number,
-  onConfirm: () => void,
-) {
-  const message =
-    previousCount > 0
-      ? `현재 ${previousCount}곡이 있습니다. 클립보드의 ${importedCount}곡으로 목록을 교체할까요? 이 작업은 되돌릴 수 없습니다.`
-      : `클립보드에서 ${importedCount}곡을 불러올까요?`;
-
-  Alert.alert("불러오기", message, [
-    { text: "취소", style: "cancel" },
-    { text: "불러오기", onPress: onConfirm },
-  ]);
-}
-
 export default function BackupScreen() {
+  const confirm = useConfirm();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? "light";
   const tint = useThemeColor({}, "tint");
@@ -87,26 +72,36 @@ export default function BackupScreen() {
         importedCount = songs.length;
         const previous = await loadSongs();
 
-        confirmImportAlert(importedCount, previous.length, () => {
-          void (async () => {
-            setImporting(true);
-            try {
-              await saveSongs(songs);
-              logDebug(
-                `[backup]불러오기: ${songs.length}곡 (이전 ${previous.length}곡 교체)`,
-                "info",
-              );
-              showToast(`${songs.length}곡을 불러왔어요`);
-            } catch (e) {
-              logDebug(
-                `[backup]불러오기 저장 실패: ${e instanceof Error ? e.message : String(e)}`,
-                "error",
-              );
-              showToast("저장에 실패했어요");
-            } finally {
-              setImporting(false);
-            }
-          })();
+        const message =
+          previous.length > 0
+            ? `현재 ${previous.length}곡이 있습니다. 클립보드의 ${importedCount}곡으로 목록을 교체할까요? 이 작업은 되돌릴 수 없습니다.`
+            : `클립보드에서 ${importedCount}곡을 불러올까요?`;
+
+        confirm({
+          title: "불러오기",
+          message,
+          confirmLabel: "불러오기",
+          onConfirm: () => {
+            void (async () => {
+              setImporting(true);
+              try {
+                await saveSongs(songs);
+                logDebug(
+                  `[backup]불러오기: ${songs.length}곡 (이전 ${previous.length}곡 교체)`,
+                  "info",
+                );
+                showToast(`${songs.length}곡을 불러왔어요`);
+              } catch (e) {
+                logDebug(
+                  `[backup]불러오기 저장 실패: ${e instanceof Error ? e.message : String(e)}`,
+                  "error",
+                );
+                showToast("저장에 실패했어요");
+              } finally {
+                setImporting(false);
+              }
+            })();
+          },
         });
       } catch (e) {
         logDebug(
@@ -116,7 +111,7 @@ export default function BackupScreen() {
         showToast(songsBackupErrorMessage(e));
       }
     })();
-  }, [exporting, importing, showToast]);
+  }, [confirm, exporting, importing, showToast]);
 
   const onExport = useCallback(async () => {
     if (exporting || importing) return;
