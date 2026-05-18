@@ -9,7 +9,6 @@ import {
   Alert,
   Animated,
   Dimensions,
-  Easing,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -27,6 +26,14 @@ import DraggableFlatList, {
 } from "react-native-draggable-flatlist";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { DesignColors } from "@/components/design/colors";
+import { ScreenTitle } from "@/components/design/ScreenTitle";
+import {
+  SwipeActionPanel,
+  SWIPE_ACTION_WIDTH,
+} from "@/components/design/SwipeActionPanel";
+import { SongCard } from "@/components/design/SongCard";
+import { mapStorageSongToCardModel } from "@/components/design/map-song";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { YoutubeImportModal } from "@/components/youtube-import-modal";
@@ -35,11 +42,8 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { logDebug } from "@/lib/debug-log-buffer";
 import {
-  formatSongListTitleLine,
   formatTranspose,
-  formatTransposeForSongCard,
   GENDER_OPTIONS,
-  getLastSungRecencyLabel,
   isSungToday,
   localYmd,
   READINESS_VISUAL,
@@ -74,29 +78,6 @@ const READINESS_FILTER_CHIPS: { value: ReadinessFilter; label: string }[] = [
   }),
 ];
 
-const ROW_TITLE_FONT = {
-  fontSize: 15,
-  lineHeight: 19,
-  fontWeight: "600" as const,
-};
-
-const ROW_SECONDARY_LINE_HEIGHT = 18;
-const ROW_VERTICAL_PADDING = 5;
-const ROW_MIN_HEIGHT =
-  ROW_VERTICAL_PADDING * 2 +
-  ROW_TITLE_FONT.lineHeight +
-  2 +
-  ROW_SECONDARY_LINE_HEIGHT;
-
-const MARQUEE_PX_PER_SEC = 32;
-const MARQUEE_DURATION_MIN_MS = 2000;
-const MARQUEE_DURATION_MAX_MS = 35000;
-const SWIPE_SUNG_ACTION_WIDTH = 148;
-const SWIPE_DELETE_ACTION_WIDTH = 88;
-/** 오늘 불렀음 취소 스와이프(노란 배경 + 어두운 전경) */
-const SWIPE_SUNG_CANCEL_BG = "#FFC107";
-const SWIPE_SUNG_CANCEL_FG = "#78350F";
-
 function confirmDeleteSongAlert(onDelete: () => void) {
   Alert.alert("삭제하시겠습니까?", "", [
     { text: "취소", style: "cancel" },
@@ -115,20 +96,10 @@ function ReadinessFilterScroller({
   readinessFilter,
   onSelectFilter,
   counts,
-  tint,
-  iconMuted,
-  textColor,
-  screenBg,
-  colorScheme,
 }: {
   readinessFilter: ReadinessFilter;
   onSelectFilter: (value: ReadinessFilter) => void;
   counts: { all: number; by: Record<SongReadiness, number> };
-  tint: string;
-  iconMuted: string;
-  textColor: string;
-  screenBg: string;
-  colorScheme: "light" | "dark";
 }) {
   const [scrollX, setScrollX] = useState(0);
   const [viewportWidth, setViewportWidth] = useState(0);
@@ -155,9 +126,6 @@ function ReadinessFilterScroller({
         {READINESS_FILTER_CHIPS.map((chip) => {
           const selected = readinessFilter === chip.value;
           const isAll = chip.value === "all";
-          const chipVisual = isAll
-            ? null
-            : READINESS_VISUAL[chip.value as SongReadiness];
           const count = isAll
             ? counts.all
             : counts.by[chip.value as SongReadiness];
@@ -166,56 +134,33 @@ function ReadinessFilterScroller({
               key={chip.value}
               onPress={() => onSelectFilter(chip.value)}
               style={({ pressed }) => [
-                styles.readinessFilterChip,
-                {
-                  borderColor: selected ? tint : iconMuted,
-                  backgroundColor: selected
-                    ? `${tint}18`
-                    : colorScheme === "dark"
-                      ? "#2c2c2e"
-                      : "#f5f5f5",
-                  opacity: pressed ? 0.85 : 1,
-                },
+                styles.readinessFilterTab,
+                selected && styles.readinessFilterTabActive,
+                { opacity: pressed ? 0.85 : 1 },
               ]}
             >
-              {!isAll && chipVisual ? (
-                <Ionicons
-                  name={chipVisual.icon}
-                  size={16}
-                  color={chipVisual.color}
-                  style={styles.readinessFilterChipIcon}
-                />
-              ) : null}
-              <ThemedText
-                style={{
-                  fontSize: 13,
-                  fontWeight: selected ? "700" : "500",
-                  color: selected ? tint : textColor,
-                }}
-              >
-                {chip.label}
-              </ThemedText>
-              <View
+              <Text
                 style={[
-                  styles.readinessFilterBadge,
-                  {
-                    backgroundColor: selected
-                      ? `${tint}33`
-                      : colorScheme === "dark"
-                        ? "#3a3a3c"
-                        : "#e5e5ea",
-                  },
+                  styles.readinessFilterTabLabel,
+                  selected && styles.readinessFilterTabLabelActive,
                 ]}
               >
-                <ThemedText
-                  style={{
-                    fontSize: 11,
-                    fontWeight: "700",
-                    color: selected ? tint : textColor,
-                  }}
+                {chip.label}
+              </Text>
+              <View
+                style={[
+                  styles.readinessFilterCountBadge,
+                  selected && styles.readinessFilterCountBadgeActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.readinessFilterCountText,
+                    selected && styles.readinessFilterCountTextActive,
+                  ]}
                 >
                   {count}
-                </ThemedText>
+                </Text>
               </View>
             </Pressable>
           );
@@ -224,7 +169,7 @@ function ReadinessFilterScroller({
       {showLeftFade ? (
         <>
           <LinearGradient
-            colors={[screenBg, "transparent"]}
+            colors={[DesignColors.bg, "transparent"]}
             start={{ x: 0, y: 0.5 }}
             end={{ x: 1, y: 0.5 }}
             style={[styles.readinessFilterFade, styles.readinessFilterFadeLeft]}
@@ -234,7 +179,7 @@ function ReadinessFilterScroller({
             style={[
               styles.readinessFilterChevron,
               styles.readinessFilterChevronLeft,
-              { color: iconMuted },
+              { color: DesignColors.textMuted },
             ]}
             pointerEvents="none"
           >
@@ -245,7 +190,7 @@ function ReadinessFilterScroller({
       {showRightFade ? (
         <>
           <LinearGradient
-            colors={["transparent", screenBg]}
+            colors={["transparent", DesignColors.bg]}
             start={{ x: 0, y: 0.5 }}
             end={{ x: 1, y: 0.5 }}
             style={[
@@ -258,7 +203,7 @@ function ReadinessFilterScroller({
             style={[
               styles.readinessFilterChevron,
               styles.readinessFilterChevronRight,
-              { color: iconMuted },
+              { color: DesignColors.textMuted },
             ]}
             pointerEvents="none"
           >
@@ -270,242 +215,8 @@ function ReadinessFilterScroller({
   );
 }
 
-function SongRowTitleMarquee({ title }: { title: string }) {
-  const textColor = useThemeColor({}, "text");
-  const anim = useRef(new Animated.Value(0)).current;
-  const [containerW, setContainerW] = useState(0);
-  const [textW, setTextW] = useState<number | null>(null);
-  const [measureEpoch, setMeasureEpoch] = useState(0);
-
-  /** ScrollView·onLayout 등 여러 소스에서 오는 값 중 더 큰 쪽을 쓰면(웹+네이티브) 실제 글자 폭에 가깝게 맞출 수 있음 */
-  const commitMeasuredWidth = useCallback((w: number) => {
-    if (w <= 0 || !Number.isFinite(w)) return;
-    setTextW((prev) => {
-      if (prev == null) return w;
-      return w > prev ? w : prev;
-    });
-  }, []);
-
-  useEffect(() => {
-    setTextW(null);
-    anim.setValue(0);
-    setMeasureEpoch((n) => n + 1);
-  }, [title, anim]);
-
-  useEffect(() => {
-    if (textW == null || containerW <= 0) return;
-    const overflow = textW - containerW;
-    if (overflow <= 0) return;
-
-    /** effect가 다시 돌 때 translate가 중간값이면, 같은 duration으로 남은 거리만 움직여 체감 속도가 극도로 느려짐 */
-    anim.stopAnimation();
-    anim.setValue(0);
-
-    const distance = overflow + 28;
-    const rawDuration = (distance / MARQUEE_PX_PER_SEC) * 1000;
-    const duration = Math.min(
-      MARQUEE_DURATION_MAX_MS,
-      Math.max(MARQUEE_DURATION_MIN_MS, rawDuration),
-    );
-    const useNativeDriver = Platform.OS !== "web";
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.delay(800),
-        Animated.timing(anim, {
-          toValue: -distance,
-          duration,
-          easing: Easing.linear,
-          useNativeDriver,
-        }),
-        Animated.delay(300),
-        Animated.timing(anim, {
-          toValue: 0,
-          duration: 0,
-          useNativeDriver,
-        }),
-      ]),
-    );
-    loop.start();
-    return () => {
-      loop.stop();
-      anim.stopAnimation();
-    };
-  }, [title, containerW, textW, anim]);
-
-  const measured = textW != null;
-  const needsMarquee = measured && containerW > 0 && textW! > containerW;
-  /** 마퀴 행만 고정 폭(말줄임 방지). 일반 행은 부모 폭에 맡김 — react-native-web은 onTextLayout이 없어 ScrollView 측정이 필수 */
-  const marqueeTextWidthStyle =
-    measured && needsMarquee ? { width: textW! } : null;
-
-  return (
-    <View
-      style={styles.rowTitleMarqueeWrap}
-      collapsable={false}
-      onLayout={(e) => setContainerW(e.nativeEvent.layout.width)}
-    >
-      <View
-        style={styles.rowTitleMeasureHost}
-        pointerEvents="none"
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-        collapsable={false}
-      >
-        <ScrollView
-          key={measureEpoch}
-          horizontal
-          scrollEnabled={false}
-          showsHorizontalScrollIndicator={false}
-          style={styles.rowTitleMeasureScroll}
-          contentContainerStyle={styles.rowTitleMeasureScrollInner}
-          onContentSizeChange={(cw) => commitMeasuredWidth(cw)}
-        >
-          <Text
-            onLayout={(e) =>
-              commitMeasuredWidth(e.nativeEvent.layout.width)
-            }
-            onTextLayout={(e) => {
-              const lines = e.nativeEvent.lines;
-              if (!lines.length) return;
-              commitMeasuredWidth(
-                Math.max(...lines.map((line) => line.width)),
-              );
-            }}
-            style={[
-              styles.rowTitleMarqueeText,
-              ROW_TITLE_FONT,
-              { color: textColor },
-            ]}
-            numberOfLines={1}
-          >
-            {title}
-          </Text>
-        </ScrollView>
-      </View>
-      {needsMarquee ? (
-        <Animated.View
-          style={[
-            styles.rowTitleMarqueeTrack,
-            { transform: [{ translateX: anim }] },
-          ]}
-        >
-          <Text
-            style={[
-              styles.rowTitleMarqueeText,
-              ROW_TITLE_FONT,
-              { color: textColor },
-              marqueeTextWidthStyle,
-            ]}
-            numberOfLines={1}
-            ellipsizeMode="clip"
-          >
-            {title}
-          </Text>
-        </Animated.View>
-      ) : (
-        <Text
-          style={[
-            styles.rowTitleMarqueeText,
-            ROW_TITLE_FONT,
-            { color: textColor },
-          ]}
-          numberOfLines={1}
-          ellipsizeMode={measured ? undefined : "tail"}
-        >
-          {title}
-        </Text>
-      )}
-    </View>
-  );
-}
-
-function SongRowDetails({
-  item,
-  iconMuted,
-}: {
-  item: Song;
-  iconMuted: string;
-}) {
-  const lastSungLabel = getLastSungRecencyLabel(item.sungDates);
-  const showReadinessTag = item.readiness !== "none";
-  const readinessLabel =
-    SONG_READINESS_OPTIONS.find((o) => o.value === item.readiness)?.label ?? "";
-  const transposeLabel = formatTransposeForSongCard(item.transposeSemitones);
-  const rv = READINESS_VISUAL[item.readiness];
-  const genderKey = item.genderKey;
-  const genderShort =
-    genderKey === "male" ? "남" : genderKey === "female" ? "여" : null;
-  const genderColor =
-    genderKey === "male"
-      ? "#1565c0"
-      : genderKey === "female"
-        ? "#c62828"
-        : undefined;
-
-  const hasOtherSecondary =
-    showReadinessTag || genderShort != null || transposeLabel != null;
-
-  const extras = (
-    <>
-      {genderShort ? (
-        <Text style={{ color: genderColor, fontWeight: "700" }}>
-          {genderShort}
-        </Text>
-      ) : null}
-      {genderShort && transposeLabel ? (
-        <Text style={{ color: iconMuted }}> · </Text>
-      ) : null}
-      {transposeLabel ? (
-        <Text style={{ color: iconMuted, fontWeight: "600" }}>
-          {transposeLabel}
-        </Text>
-      ) : null}
-    </>
-  );
-
-  return (
-    <View style={styles.rowTextBlock}>
-      <SongRowTitleMarquee title={formatSongListTitleLine(item)} />
-      <View style={styles.rowReadinessLine}>
-        <View style={styles.rowReadinessLeft}>
-          {hasOtherSecondary ? (
-            <View style={styles.rowReadinessMain}>
-              {showReadinessTag ? (
-                <Ionicons
-                  name={rv.icon}
-                  size={16}
-                  color={rv.color}
-                  style={styles.rowReadinessIcon}
-                />
-              ) : null}
-              <Text
-                style={[styles.rowReadinessLabel, { color: iconMuted }]}
-                numberOfLines={1}
-              >
-                {showReadinessTag ? readinessLabel : null}
-                {showReadinessTag && (genderShort || transposeLabel) ? (
-                  <Text style={{ color: iconMuted }}> · </Text>
-                ) : null}
-                {genderShort || transposeLabel ? extras : null}
-              </Text>
-            </View>
-          ) : null}
-        </View>
-        {lastSungLabel ? (
-          <View style={styles.rowSungTodayBadge}>
-            <Ionicons name="mic" size={16} color="#2e7d32" />
-            <Text style={styles.rowSungTodayText}>{lastSungLabel}</Text>
-          </View>
-        ) : null}
-      </View>
-    </View>
-  );
-}
-
 function SwipeableSongRow({
   item,
-  rowBg,
-  borderColor,
   iconMuted,
   onOpenDetail,
   onToggleSungToday,
@@ -519,8 +230,6 @@ function SwipeableSongRow({
   onDisabledDragAttempt,
 }: {
   item: Song;
-  rowBg: string;
-  borderColor: string;
   iconMuted: string;
   onOpenDetail: () => void;
   onToggleSungToday: () => void;
@@ -539,127 +248,117 @@ function SwipeableSongRow({
   const renderLeftActions = (
     progress: Animated.AnimatedInterpolation<number>,
   ) => (
-    <Animated.View
-      style={[
-        styles.swipeDeleteAction,
-        {
-          opacity: progress.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0.65, 1],
-            extrapolate: "clamp",
-          }),
-        },
-      ]}
+    <SwipeActionPanel
+      backgroundColor={DesignColors.swipeDeleteBg}
+      progress={progress}
+      cardEdge="right"
     >
-      <Ionicons name="trash-outline" size={20} color="#fff" />
+      <Ionicons
+        name="trash-outline"
+        size={20}
+        color={DesignColors.swipeDeleteText}
+      />
       <Text style={styles.swipeDeleteActionLabel}>삭제</Text>
-    </Animated.View>
+    </SwipeActionPanel>
   );
 
   const renderRightActions = (
     progress: Animated.AnimatedInterpolation<number>,
   ) => (
-    <Animated.View
-      style={[
-        styles.swipeSungAction,
-        sungToday ? styles.swipeSungCancelAction : null,
-        {
-          backgroundColor: sungToday ? SWIPE_SUNG_CANCEL_BG : "#2e7d32",
-          opacity: progress.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0.65, 1],
-            extrapolate: "clamp",
-          }),
-        },
-      ]}
+    <SwipeActionPanel
+      backgroundColor={
+        sungToday ? DesignColors.swipeSungCancelBg : DesignColors.swipeSungBg
+      }
+      progress={progress}
+      cardEdge="left"
+      contentStyle={styles.swipeSungActionPanel}
     >
       {sungToday ? (
         <>
-          <Ionicons name="arrow-undo" size={22} color={SWIPE_SUNG_CANCEL_FG} />
+          <Ionicons
+            name="arrow-undo"
+            size={20}
+            color={DesignColors.swipeSungCancelText}
+          />
           <Text style={styles.swipeSungCancelActionLabel}>오늘 취소</Text>
         </>
       ) : (
         <>
-          <Ionicons name="mic" size={22} color="#fff" />
+          <Ionicons name="mic" size={20} color={DesignColors.swipeSungText} />
           <Text style={styles.swipeSungActionLabel}>오늘 불렀음</Text>
         </>
       )}
-    </Animated.View>
+    </SwipeActionPanel>
   );
 
   return (
     <ScaleDecorator activeScale={1.02}>
-      <Swipeable
-        ref={(r) => {
-          swipeRef.current = r;
-          registerSwipeRef(item.id, r);
-        }}
-        enabled={swipeEnabled && !isActive}
-        renderLeftActions={renderLeftActions}
-        renderRightActions={renderRightActions}
-        onSwipeableWillOpen={() => closeOtherSwipes(item.id)}
-        onSwipeableOpen={(direction) => {
-          swipeRef.current?.close();
-          if (direction === "left") {
-            confirmDeleteSongAlert(onRequestDelete);
-            return;
-          }
-          if (direction !== "right") return;
-          if (Platform.OS !== "web") {
-            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }
-          onToggleSungToday();
-        }}
-        friction={2}
-        overshootLeft={false}
-        overshootRight={false}
-        leftThreshold={SWIPE_DELETE_ACTION_WIDTH * 0.45}
-        rightThreshold={SWIPE_SUNG_ACTION_WIDTH * 0.45}
-        enableTrackpadTwoFingerGesture
-        containerStyle={styles.swipeRowContainer}
+      <View
+        style={[styles.songCardRow, isActive ? { opacity: 0.92 } : null]}
       >
-        <View
-          style={[
-            styles.row,
-            { borderBottomColor: borderColor, backgroundColor: rowBg },
-            isActive ? { opacity: 0.92 } : null,
-          ]}
-        >
-          <Pressable
-            onLongPress={() => {
-              if (dragReorderEnabled) {
-                drag();
-              } else {
-                onDisabledDragAttempt();
-              }
-            }}
-            delayLongPress={220}
-            disabled={isActive}
-            hitSlop={8}
-            style={({ pressed }) => [
-              styles.dragHandle,
-              {
-                opacity: dragReorderEnabled ? (pressed ? 0.65 : 1) : 0.3,
-              },
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel={
-              dragReorderEnabled ? "길게 눌러 순서 변경" : "전체 보기에서만 순서 변경 가능"
+        <Pressable
+          onLongPress={() => {
+            if (dragReorderEnabled) {
+              drag();
+            } else {
+              onDisabledDragAttempt();
             }
+          }}
+          delayLongPress={220}
+          disabled={isActive}
+          hitSlop={8}
+          style={({ pressed }) => [
+            styles.dragHandle,
+            {
+              opacity: dragReorderEnabled ? (pressed ? 0.65 : 1) : 0.3,
+            },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel={
+            dragReorderEnabled
+              ? "길게 눌러 순서 변경"
+              : "전체 보기에서만 순서 변경 가능"
+          }
+        >
+          <Ionicons name="reorder-three" size={22} color={iconMuted} />
+        </Pressable>
+        <View style={styles.songCardWrap}>
+          <Swipeable
+            ref={(r) => {
+              swipeRef.current = r;
+              registerSwipeRef(item.id, r);
+            }}
+            enabled={swipeEnabled && !isActive}
+            renderLeftActions={renderLeftActions}
+            renderRightActions={renderRightActions}
+            onSwipeableWillOpen={() => closeOtherSwipes(item.id)}
+            onSwipeableOpen={(direction) => {
+              swipeRef.current?.close();
+              if (direction === "left") {
+                confirmDeleteSongAlert(onRequestDelete);
+                return;
+              }
+              if (direction !== "right") return;
+              if (Platform.OS !== "web") {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }
+              onToggleSungToday();
+            }}
+            friction={2}
+            overshootLeft={false}
+            overshootRight={false}
+            leftThreshold={SWIPE_ACTION_WIDTH * 0.45}
+            rightThreshold={SWIPE_ACTION_WIDTH * 0.45}
+            enableTrackpadTwoFingerGesture
+            containerStyle={styles.swipeCardContainer}
           >
-            <Ionicons name="reorder-three" size={22} color={iconMuted} />
-          </Pressable>
-          <Pressable
-            onPress={onOpenDetail}
-            disabled={isActive}
-            style={styles.rowBody}
-            accessibilityRole="button"
-            accessibilityLabel={`${formatSongListTitleLine(item)} 상세 보기`}
-          >
-            <SongRowDetails item={item} iconMuted={iconMuted} />
-          </Pressable>
+            <SongCard
+              model={mapStorageSongToCardModel(item)}
+              onPress={onOpenDetail}
+            />
+          </Swipeable>
         </View>
-      </Swipeable>
+      </View>
     </ScaleDecorator>
   );
 }
@@ -676,11 +375,6 @@ export default function HomeScreen() {
   const textColor = useThemeColor({}, "text");
   const tint = useThemeColor({}, "tint");
   const iconMuted = useThemeColor({}, "icon");
-  const listRowSeparator = useThemeColor(
-    { light: "#e5e5ea", dark: "#3a3a3c" },
-    "icon",
-  );
-
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalSongId, setModalSongId] = useState<string | null>(null);
@@ -918,7 +612,8 @@ export default function HomeScreen() {
     () => ({
       borderColor: iconMuted,
       color: textColor,
-      backgroundColor: colorScheme === "dark" ? "#1c1c1e" : "#f2f2f7",
+      backgroundColor:
+        colorScheme === "dark" ? "#1c1c1e" : DesignColors.bgCard,
     }),
     [colorScheme, iconMuted, textColor],
   );
@@ -951,18 +646,14 @@ export default function HomeScreen() {
 
   return (
     <ThemedView style={[styles.screen, { paddingTop: insets.top }]}>
-      <View style={styles.topSpacer} />
-
-      <ReadinessFilterScroller
-        readinessFilter={readinessFilter}
-        onSelectFilter={setReadinessFilter}
-        counts={readinessFilterCounts}
-        tint={tint}
-        iconMuted={iconMuted}
-        textColor={textColor}
-        screenBg={screenBg}
-        colorScheme={colorScheme}
-      />
+      <View style={styles.filterHeader}>
+        <ScreenTitle style={styles.homeTitle}>내 노래 목록</ScreenTitle>
+        <ReadinessFilterScroller
+          readinessFilter={readinessFilter}
+          onSelectFilter={setReadinessFilter}
+          counts={readinessFilterCounts}
+        />
+      </View>
 
       <DraggableFlatList
         data={readinessFilter === "all" ? songs : filteredSongs}
@@ -987,8 +678,6 @@ export default function HomeScreen() {
         renderItem={({ item, drag, isActive }: RenderItemParams<Song>) => (
           <SwipeableSongRow
             item={item}
-            rowBg={screenBg}
-            borderColor={listRowSeparator}
             iconMuted={iconMuted}
             onOpenDetail={() =>
               router.push({ pathname: "/song/[id]", params: { id: item.id } })
@@ -1023,8 +712,9 @@ export default function HomeScreen() {
             style={[
               styles.fabBubble,
               {
-                backgroundColor: colorScheme === "dark" ? "#2c2c2e" : "#fff",
-                borderColor: iconMuted,
+                backgroundColor:
+                  colorScheme === "dark" ? "#2c2c2e" : DesignColors.bgCard,
+                borderColor: DesignColors.bgBorder,
               },
             ]}
             accessibilityRole="menu"
@@ -1073,7 +763,10 @@ export default function HomeScreen() {
           onPress={() => setAddMenuOpen((o) => !o)}
           style={({ pressed }) => [
             styles.fabMain,
-            { backgroundColor: tint, opacity: pressed ? 0.88 : 1 },
+            {
+              backgroundColor: DesignColors.accent,
+              opacity: pressed ? 0.88 : 1,
+            },
           ]}
           accessibilityLabel="곡 추가 메뉴 열기"
           accessibilityState={{ expanded: addMenuOpen }}
@@ -1356,9 +1049,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  topSpacer: {
-    height: 12,
-    marginBottom: 12,
+  filterHeader: {
+    borderBottomWidth: 1,
+    borderBottomColor: DesignColors.bgBorder,
+    marginHorizontal: -20,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    marginBottom: 4,
+  },
+  homeTitle: {
+    marginBottom: 16,
   },
   listFlex: {
     flex: 1,
@@ -1398,28 +1098,29 @@ const styles = StyleSheet.create({
     opacity: 0.35,
   },
   fabMain: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 3,
+    borderColor: DesignColors.bg,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.28,
+    shadowOpacity: 0.22,
     shadowRadius: 5,
     elevation: 8,
   },
   readinessFilterScroller: {
     position: "relative",
-    marginBottom: 10,
+    marginBottom: 0,
   },
   readinessFilterScroll: {
     flexGrow: 0,
   },
   readinessFilterScrollContent: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+    alignItems: "flex-end",
     paddingRight: 4,
   },
   readinessFilterFade: {
@@ -1450,168 +1151,98 @@ const styles = StyleSheet.create({
   readinessFilterChevronRight: {
     right: 6,
   },
-  readinessFilterChip: {
+  readinessFilterTab: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
     borderWidth: 1,
-    borderRadius: 20,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-  },
-  readinessFilterChipIcon: {
+    borderBottomWidth: 0,
+    borderColor: "transparent",
+    backgroundColor: "transparent",
     marginRight: 6,
   },
-  readinessFilterBadge: {
-    marginLeft: 6,
-    minWidth: 22,
+  readinessFilterTabActive: {
+    backgroundColor: DesignColors.bgCard,
+    borderColor: DesignColors.bgBorder,
+  },
+  readinessFilterTabLabel: {
+    fontSize: 13,
+    color: DesignColors.textSecondary,
+  },
+  readinessFilterTabLabelActive: {
+    color: DesignColors.textPrimary,
+    fontWeight: "500",
+  },
+  readinessFilterCountBadge: {
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: 1,
     borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: DesignColors.bgBorder,
+  },
+  readinessFilterCountBadgeActive: {
+    backgroundColor: DesignColors.accent,
+  },
+  readinessFilterCountText: {
+    fontSize: 10,
+    fontWeight: "500",
+    color: DesignColors.textMuted,
+  },
+  readinessFilterCountTextActive: {
+    color: "#fff",
   },
   listContent: {
-    paddingBottom: 96,
+    paddingTop: 12,
+    paddingBottom: 100,
     flexGrow: 1,
   },
-  swipeRowContainer: {
+  swipeCardContainer: {
+    flex: 1,
     width: "100%",
   },
-  row: {
+  songCardRow: {
     flexDirection: "row",
-    alignItems: "center",
-    minHeight: ROW_MIN_HEIGHT,
-    paddingVertical: ROW_VERTICAL_PADDING,
-    paddingHorizontal: 0,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    alignItems: "flex-start",
     width: "100%",
+    marginBottom: 7,
   },
   dragHandle: {
     justifyContent: "center",
     alignItems: "center",
     paddingRight: 6,
     paddingLeft: 2,
-    alignSelf: "stretch",
+    paddingTop: 14,
   },
-  rowBody: {
+  songCardWrap: {
     flex: 1,
     minWidth: 0,
-  },
-  swipeDeleteAction: {
-    width: SWIPE_DELETE_ACTION_WIDTH,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    backgroundColor: "#c62828",
-    marginBottom: StyleSheet.hairlineWidth,
   },
   swipeDeleteActionLabel: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "700",
+    color: DesignColors.swipeDeleteText,
+    fontSize: 13,
+    fontWeight: "600",
   },
-  swipeSungAction: {
-    width: SWIPE_SUNG_ACTION_WIDTH,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingHorizontal: 8,
-    marginBottom: StyleSheet.hairlineWidth,
-  },
-  swipeSungCancelAction: {
-    backgroundColor: SWIPE_SUNG_CANCEL_BG,
+  swipeSungActionPanel: {
+    flexDirection: "column",
+    gap: 2,
+    paddingHorizontal: 4,
+    paddingLeft: 4,
+    paddingRight: 10,
   },
   swipeSungActionLabel: {
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: "700",
-    flexShrink: 1,
+    color: DesignColors.swipeSungText,
+    fontSize: 10,
+    fontWeight: "600",
+    textAlign: "center",
   },
   swipeSungCancelActionLabel: {
-    color: SWIPE_SUNG_CANCEL_FG,
-    fontSize: 13,
-    fontWeight: "700",
-    flexShrink: 1,
-  },
-  rowTitleMarqueeWrap: {
-    position: "relative",
-    overflow: "hidden",
-    minHeight: 19,
-    minWidth: 0,
-    justifyContent: "center",
-  },
-  /** 넓은 고정 폭 + 비음수 zIndex: Android에서 측정 레이아웃·onTextLayout이 안정적으로 돌게 함 */
-  rowTitleMeasureHost: {
-    position: "absolute",
-    opacity: 0.02,
-    left: 0,
-    top: 0,
-    width: 8000,
-    height: ROW_TITLE_FONT.lineHeight,
-    zIndex: 0,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  rowTitleMeasureScroll: {
-    flexGrow: 0,
-    maxHeight: ROW_TITLE_FONT.lineHeight,
-  },
-  rowTitleMeasureScrollInner: {
-    alignItems: "center",
-    paddingRight: 4,
-  },
-  rowTitleMarqueeText: {
-    flexShrink: 0,
-  },
-  rowTitleMarqueeTrack: {
-    alignSelf: "flex-start",
-  },
-  rowReadinessLine: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 2,
-    minHeight: ROW_SECONDARY_LINE_HEIGHT,
-    minWidth: 0,
-    gap: 8,
-  },
-  rowReadinessLeft: {
-    flex: 1,
-    minWidth: 0,
-  },
-  rowReadinessMain: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 5,
-    minWidth: 0,
-  },
-  rowSungTodayBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    flexShrink: 0,
-    marginLeft: 4,
-  },
-  rowSungTodayText: {
-    fontSize: 12,
+    color: DesignColors.swipeSungCancelText,
+    fontSize: 10,
     fontWeight: "600",
-    color: "#2e7d32",
-  },
-  rowReadinessIcon: {
-    flexShrink: 0,
-  },
-  rowReadinessLabel: {
-    flex: 1,
-    minWidth: 0,
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  rowTextBlock: {
-    flex: 1,
-    minWidth: 0,
-    paddingRight: 4,
+    textAlign: "center",
   },
   toast: {
     position: "absolute",

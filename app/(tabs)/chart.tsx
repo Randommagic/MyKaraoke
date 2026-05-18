@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ScreenTitle } from "@/components/design/ScreenTitle";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -274,9 +275,7 @@ export default function PopularChartScreen() {
   return (
     <ThemedView style={[styles.root, { paddingTop: insets.top + 12 }]}>
       <View style={styles.header}>
-        <ThemedText type="title" style={styles.title}>
-          인기 차트
-        </ThemedText>
+        <ScreenTitle>인기 차트</ScreenTitle>
         <View style={styles.providerRow}>
           {(["tj", "ky"] as const).map((key) => {
             const selected = provider === key;
@@ -533,9 +532,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
     gap: 10,
-  },
-  title: {
-    fontSize: 22,
   },
   providerRow: {
     flexDirection: "row",

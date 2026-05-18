@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 
+import { DesignColors } from "@/components/design/colors";
 import {
   normalizeSungDates,
   type Song,
@@ -17,10 +18,10 @@ export const READINESS_VISUAL: Record<
   SongReadiness,
   { icon: keyof typeof Ionicons.glyphMap; color: string }
 > = {
-  none: { icon: "ellipse-outline", color: "#9e9e9e" },
-  can_full: { icon: "checkmark-circle", color: "#2e7d32" },
-  need_practice: { icon: "school-outline", color: "#ef6c00" },
-  will_try: { icon: "flag-outline", color: "#c62828" },
+  none: { icon: "ellipse-outline", color: DesignColors.badgeNoneText },
+  can_full: { icon: "checkmark-circle", color: DesignColors.badgeDoneText },
+  need_practice: { icon: "school-outline", color: DesignColors.badgePracText },
+  will_try: { icon: "flag-outline", color: DesignColors.badgeTryText },
 };
 
 export function formatTranspose(semitones: number): string {

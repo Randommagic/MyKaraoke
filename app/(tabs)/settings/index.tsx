@@ -4,6 +4,7 @@ import { useCallback, useMemo } from "react";
 import { Alert, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ScreenTitle } from "@/components/design/ScreenTitle";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -89,9 +90,7 @@ export default function SettingsScreen() {
 
   return (
     <ThemedView style={[styles.root, { paddingTop: insets.top + 12 }]}>
-      <ThemedText type="title" style={styles.title}>
-        설정
-      </ThemedText>
+      <ScreenTitle style={styles.title}>설정</ScreenTitle>
 
       <View style={[styles.menu, { borderColor }]}>
         {MENU_ITEMS.map((item, index) => (
