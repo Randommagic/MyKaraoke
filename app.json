@@ -8,6 +8,12 @@
     "scheme": "mykaraoke",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "com.randommagic.MyKaraoke",
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": ["youtube", "vnd.youtube"]
+      }
+    },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -17,7 +23,12 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.randommagic.MyKaraoke"
+      "package": "com.randommagic.MyKaraoke",
+      "queries": [
+        {
+          "package": "com.google.android.youtube"
+        }
+      ]
     },
     "web": {
       "output": "static",

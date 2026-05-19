@@ -1,4 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
+import { Image } from "expo-image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -18,6 +20,7 @@ import {
   collectYoutubeVideoIdsFromSongs,
   loadYoutubeImportItems,
   sortYoutubeImportItemsByExisting,
+  youtubeThumbnailUrlFromVideoId,
   type YoutubeImportItem,
 } from "@/lib/youtube-import";
 
@@ -120,6 +123,19 @@ export function YoutubeImportModal({
     await onAdd(songs);
   }, [existingVideoIds, items, onAdd, selected, selectedCount]);
 
+  const onPasteFromClipboard = useCallback(async () => {
+    try {
+      const hasText = await Clipboard.hasStringAsync();
+      if (!hasText) return;
+      const text = (await Clipboard.getStringAsync()).trim();
+      if (!text) return;
+      setUrl(text);
+      setError(null);
+    } catch {
+      // 클립보드 접근 실패 시 무시
+    }
+  }, []);
+
   return (
     <Modal
       visible={visible}
@@ -137,16 +153,29 @@ export function YoutubeImportModal({
             영상 또는 재생목록 URL을 넣고 불러오기를 누르세요.
           </ThemedText>
 
-          <TextInput
-            value={url}
-            onChangeText={setUrl}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-            placeholder="https://www.youtube.com/watch?v=… 또는 …&list=…"
-            placeholderTextColor={DesignColors.textMuted}
-            style={styles.urlInput}
-          />
+          <View style={styles.urlInputRow}>
+            <TextInput
+              value={url}
+              onChangeText={setUrl}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              placeholder="Youtube 링크를 입력하세요"
+              placeholderTextColor={DesignColors.textMuted}
+              style={[styles.urlInput, styles.urlInputField]}
+            />
+            <Pressable
+              onPress={() => void onPasteFromClipboard()}
+              style={({ pressed }) => [
+                styles.pasteBtn,
+                { opacity: pressed ? 0.75 : 1 },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="클립보드에서 붙여넣기"
+            >
+              <ThemedText style={styles.pasteBtnLabel}>붙여넣기</ThemedText>
+            </Pressable>
+          </View>
 
           <Pressable
             onPress={() => void onFetch()}
@@ -186,6 +215,7 @@ export function YoutubeImportModal({
                 renderItem={({ item }) => {
                   const alreadyAdded = existingVideoIds.has(item.videoId);
                   const on = !alreadyAdded && selected.has(item.videoId);
+                  const thumbUri = youtubeThumbnailUrlFromVideoId(item.videoId);
                   return (
                     <Pressable
                       onPress={() => toggle(item.videoId)}
@@ -218,6 +248,15 @@ export function YoutubeImportModal({
                         }
                         style={styles.checkIcon}
                       />
+                      <Image
+                        source={{ uri: thumbUri }}
+                        style={[
+                          styles.thumb,
+                          alreadyAdded ? styles.thumbMuted : null,
+                        ]}
+                        contentFit="cover"
+                        accessibilityIgnoresInvertColors
+                      />
                       <View style={styles.rowText}>
                         <ThemedText
                           type="defaultSemiBold"
@@ -234,11 +273,7 @@ export function YoutubeImportModal({
                           <ThemedText style={styles.addedBadge}>
                             이미 추가됨
                           </ThemedText>
-                        ) : (
-                          <ThemedText style={styles.urlLine} numberOfLines={1}>
-                            {item.watchUrl}
-                          </ThemedText>
-                        )}
+                        ) : null}
                       </View>
                     </Pressable>
                   );
@@ -307,6 +342,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     color: DesignColors.textMuted,
   },
+  urlInputRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 8,
+    marginBottom: 10,
+  },
   urlInput: {
     borderWidth: 1,
     borderRadius: 10,
@@ -316,7 +357,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 15,
-    marginBottom: 10,
+  },
+  urlInputField: {
+    flex: 1,
+    minWidth: 0,
+  },
+  pasteBtn: {
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: DesignColors.accent,
+    backgroundColor: `${DesignColors.accent}14`,
+  },
+  pasteBtnLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: DesignColors.accent,
   },
   fetchBtn: {
     borderRadius: 10,
@@ -362,12 +419,14 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     borderWidth: 1,
     borderRadius: 10,
-    padding: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
     marginBottom: 8,
     borderColor: DesignColors.bgBorder,
+    gap: 10,
   },
   rowDefault: {
     backgroundColor: DesignColors.bg,
@@ -386,23 +445,27 @@ const styles = StyleSheet.create({
     color: DesignColors.textMuted,
   },
   checkIcon: {
-    marginRight: 10,
-    marginTop: 2,
+    flexShrink: 0,
+  },
+  thumb: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: DesignColors.bgBorder,
+    flexShrink: 0,
+  },
+  thumbMuted: {
+    opacity: 0.55,
   },
   rowText: {
     flex: 1,
     minWidth: 0,
+    gap: 4,
   },
   addedBadge: {
     fontSize: 12,
     fontWeight: "600",
     marginTop: 4,
-    color: DesignColors.textMuted,
-  },
-  urlLine: {
-    fontSize: 11,
-    marginTop: 4,
-    fontFamily: "monospace",
     color: DesignColors.textMuted,
   },
   footer: {

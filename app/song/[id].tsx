@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Linking,
   PanResponder,
   Platform,
   Pressable,
@@ -22,7 +21,6 @@ import { ThemedView } from "@/components/themed-view";
 import { DesignColors } from "@/components/design/colors";
 import { logDebug } from "@/lib/debug-log-buffer";
 import {
-  buildYoutubeOpenUrl,
   formatSungDatesLine,
   formatTranspose,
   GENDER_OPTIONS,
@@ -45,6 +43,7 @@ import {
 import {
   extractYoutubeVideoIdFromSongUrl,
   normalizeYoutubeUrlForStorage,
+  openYoutubeLink,
   youtubeThumbnailUrlFromVideoId,
 } from "@/lib/youtube-import";
 
@@ -339,20 +338,9 @@ export default function SongDetailScreen() {
   }, [draftYoutubeUrl]);
 
   const openYouTube = useCallback(async (raw: string) => {
-    const url = buildYoutubeOpenUrl(raw);
-    if (!url) return;
-    try {
-      const ok = await Linking.canOpenURL(url);
-      if (!ok) {
-        logDebug(`[song] YouTube URL 열기 불가: ${url}`, "warn");
-        return;
-      }
-      await Linking.openURL(url);
-    } catch (e) {
-      logDebug(
-        `[song] YouTube 열기 실패: ${e instanceof Error ? e.message : String(e)}`,
-        "warn",
-      );
+    const ok = await openYoutubeLink(raw);
+    if (!ok) {
+      logDebug("[song] YouTube 열기 실패", "warn");
     }
   }, []);
 

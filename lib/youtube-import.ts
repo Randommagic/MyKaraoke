@@ -1,3 +1,5 @@
+import { Linking, Platform } from "react-native";
+
 /** 가져오기 실패 시 사용자용 메시지 */
 export class YoutubeImportError extends Error {
   constructor(message: string) {
@@ -103,6 +105,65 @@ export function youtubeThumbnailUrlFromVideoId(
 
 export function watchUrlFromVideoId(videoId: string): string {
   return `https://www.youtube.com/watch?v=${videoId}`;
+}
+
+/** 브라우저/앱에서 열 수 있도록 http(s) 보정 */
+export function buildYoutubeOpenUrl(raw: string): string {
+  const s = raw.trim();
+  if (!s) return s;
+  if (/^https?:\/\//i.test(s)) return s;
+  return `https://${s.replace(/^\/+/u, "")}`;
+}
+
+/** YouTube 앱 deep link 후보 (설치 시 웹보다 우선) */
+function youtubeAppUrlCandidates(videoId: string): string[] {
+  const candidates = [`vnd.youtube://${videoId}`];
+  if (Platform.OS === "ios") {
+    candidates.push(`youtube://watch?v=${videoId}`);
+  }
+  if (Platform.OS === "android") {
+    candidates.push(
+      `intent://www.youtube.com/watch?v=${videoId}#Intent;package=com.google.android.youtube;scheme=https;end`,
+    );
+  }
+  return candidates;
+}
+
+/**
+ * YouTube 영상·링크 열기 — 앱 설치 시 YouTube 앱 우선, 없으면 https.
+ * @returns 열기 시도 성공 여부
+ */
+export async function openYoutubeLink(raw: string): Promise<boolean> {
+  const trimmed = raw.trim();
+  if (!trimmed) return false;
+
+  const videoId = extractYoutubeVideoIdFromSongUrl(trimmed);
+  const webUrl = videoId
+    ? watchUrlFromVideoId(videoId)
+    : buildYoutubeOpenUrl(trimmed);
+
+  const urls =
+    videoId && Platform.OS !== "web"
+      ? [...youtubeAppUrlCandidates(videoId), webUrl]
+      : [webUrl];
+
+  for (const url of urls) {
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (!canOpen) continue;
+      await Linking.openURL(url);
+      return true;
+    } catch {
+      // 다음 후보 시도
+    }
+  }
+
+  try {
+    await Linking.openURL(webUrl);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** 저장용: 영상 ID만 남기고 `watch?v=` 형태로 통일. ID를 못 뽑으면 trim만 */

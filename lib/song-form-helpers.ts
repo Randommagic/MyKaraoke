@@ -53,14 +53,6 @@ export function formatSongListTitleLine(song: Song): string {
   return title.length > 0 ? title : "(제목 없음)";
 }
 
-/** 브라우저/앱에서 열 수 있도록 http(s) 보정 */
-export function buildYoutubeOpenUrl(raw: string): string {
-  const s = raw.trim();
-  if (!s) return s;
-  if (/^https?:\/\//i.test(s)) return s;
-  return `https://${s.replace(/^\/+/u, "")}`;
-}
-
 export function localYmd(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
