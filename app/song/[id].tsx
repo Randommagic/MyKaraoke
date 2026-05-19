@@ -19,8 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useConfirm } from "@/components/design/confirm-dialog-context";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useThemeColor } from "@/hooks/use-theme-color";
+import { DesignColors } from "@/components/design/colors";
 import { logDebug } from "@/lib/debug-log-buffer";
 import {
   buildYoutubeOpenUrl,
@@ -252,12 +251,11 @@ export default function SongDetailScreen() {
   const songId =
     typeof params.id === "string" ? params.id : (params.id?.[0] ?? "");
 
-  const colorScheme = useColorScheme() ?? "light";
   const insets = useSafeAreaInsets();
-  const screenBg = useThemeColor({}, "background");
-  const textColor = useThemeColor({}, "text");
-  const tint = useThemeColor({}, "tint");
-  const iconMuted = useThemeColor({}, "icon");
+  const tint = DesignColors.accent;
+  const textColor = DesignColors.textPrimary;
+  const iconMuted = DesignColors.textSecondary;
+  const screenBg = DesignColors.bg;
 
   const [loading, setLoading] = useState(true);
   const [missing, setMissing] = useState(false);
@@ -275,11 +273,11 @@ export default function SongDetailScreen() {
 
   const inputSurfaceStyle = useMemo(
     () => ({
-      borderColor: iconMuted,
-      color: textColor,
-      backgroundColor: colorScheme === "dark" ? "#1c1c1e" : "#f2f2f7",
+      borderColor: DesignColors.bgBorder,
+      color: DesignColors.textPrimary,
+      backgroundColor: DesignColors.inputSurface,
     }),
-    [colorScheme, iconMuted, textColor],
+    [],
   );
 
   const applySong = useCallback((s: Song) => {
@@ -603,7 +601,7 @@ export default function SongDetailScreen() {
             tint={tint}
             textColor={textColor}
             iconMuted={iconMuted}
-            thumbSurface={colorScheme === "dark" ? "#1c1c1e" : "#fff"}
+            thumbSurface={DesignColors.bgCard}
           />
 
           <ThemedText style={styles.fieldLabel}>음정 (키 업/다운)</ThemedText>
@@ -701,9 +699,7 @@ export default function SongDetailScreen() {
                   opacity: pressed ? 0.85 : 1,
                   backgroundColor: isSungToday(sungDates)
                     ? `${tint}18`
-                    : colorScheme === "dark"
-                      ? "#2c2c2e"
-                      : "#f5f5f5",
+                    : DesignColors.inputSurface,
                 },
               ]}
             >

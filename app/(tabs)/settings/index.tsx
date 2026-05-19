@@ -8,8 +8,7 @@ import { useConfirm } from "@/components/design/confirm-dialog-context";
 import { ScreenTitle } from "@/components/design/ScreenTitle";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useThemeColor } from "@/hooks/use-theme-color";
+import { DesignColors } from "@/components/design/colors";
 import { formatAppVersionLabel, getAppInfo } from "@/lib/app-info";
 import { logDebug } from "@/lib/debug-log-buffer";
 import { resetAllSongs } from "@/lib/songs-storage";
@@ -39,25 +38,15 @@ const MENU_ITEMS: SettingsMenuItem[] = [
   },
 ];
 
-const DANGER_COLOR = { light: "#c62828", dark: "#ff8a80" } as const;
-
 export default function SettingsScreen() {
   const confirm = useConfirm();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const colorScheme = useColorScheme() ?? "light";
   const appInfo = useMemo(() => getAppInfo(), []);
   const versionLabel = useMemo(
     () => formatAppVersionLabel(appInfo),
     [appInfo],
   );
-  const borderColor = useThemeColor(
-    { light: "#e5e5ea", dark: "#3a3a3c" },
-    "icon",
-  );
-  const iconMuted = useThemeColor({}, "icon");
-  const subColor = useThemeColor({ light: "#636366", dark: "#98989d" }, "icon");
-  const dangerColor = DANGER_COLOR[colorScheme];
 
   const onResetData = useCallback(() => {
     confirm({
@@ -98,36 +87,37 @@ export default function SettingsScreen() {
     <ThemedView style={[styles.root, { paddingTop: insets.top + 12 }]}>
       <ScreenTitle style={styles.title}>설정</ScreenTitle>
 
-      <View style={[styles.menu, { borderColor }]}>
+      <View style={styles.menu}>
         {MENU_ITEMS.map((item, index) => (
           <Pressable
             key={item.key}
             onPress={() => router.push(item.href)}
             style={({ pressed }) => [
               styles.row,
-              index < MENU_ITEMS.length - 1
-                ? {
-                    borderBottomWidth: StyleSheet.hairlineWidth,
-                    borderBottomColor: borderColor,
-                  }
-                : null,
+              index < MENU_ITEMS.length - 1 ? styles.rowDivider : null,
               { opacity: pressed ? 0.75 : 1 },
             ]}
             accessibilityRole="button"
             accessibilityLabel={item.label}
           >
-            <View style={[styles.iconWrap, { backgroundColor: `${iconMuted}18` }]}>
-              <Ionicons name={item.icon} size={22} color={iconMuted} />
+            <View style={styles.iconWrap}>
+              <Ionicons
+                name={item.icon}
+                size={22}
+                color={DesignColors.textSecondary}
+              />
             </View>
             <View style={styles.rowText}>
               <ThemedText type="defaultSemiBold">{item.label}</ThemedText>
               {item.subtitle ? (
-                <ThemedText style={[styles.subtitle, { color: subColor }]}>
-                  {item.subtitle}
-                </ThemedText>
+                <ThemedText style={styles.subtitle}>{item.subtitle}</ThemedText>
               ) : null}
             </View>
-            <Ionicons name="chevron-forward" size={20} color={iconMuted} />
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={DesignColors.textSecondary}
+            />
           </Pressable>
         ))}
       </View>
@@ -136,35 +126,30 @@ export default function SettingsScreen() {
         onPress={onResetData}
         style={({ pressed }) => [
           styles.resetCard,
-          { borderColor, opacity: pressed ? 0.75 : 1 },
+          { opacity: pressed ? 0.75 : 1 },
         ]}
         accessibilityRole="button"
         accessibilityLabel="데이터 초기화"
       >
-        <View
-          style={[styles.iconWrap, { backgroundColor: `${dangerColor}18` }]}
-        >
-          <Ionicons name="trash-outline" size={22} color={dangerColor} />
+        <View style={styles.resetIconWrap}>
+          <Ionicons
+            name="trash-outline"
+            size={22}
+            color={DesignColors.danger}
+          />
         </View>
-        <ThemedText
-          type="defaultSemiBold"
-          style={[styles.resetLabel, { color: dangerColor }]}
-        >
+        <ThemedText type="defaultSemiBold" style={styles.resetLabel}>
           데이터 초기화
         </ThemedText>
       </Pressable>
 
-      <View style={[styles.infoSection, { borderColor }]}>
-        <ThemedText style={[styles.infoHeading, { color: subColor }]}>
-          앱 정보
-        </ThemedText>
+      <View style={styles.infoSection}>
+        <ThemedText style={styles.infoHeading}>앱 정보</ThemedText>
         <ThemedText type="defaultSemiBold" style={styles.infoName}>
           {appInfo.name}
         </ThemedText>
         <View style={styles.infoRow}>
-          <ThemedText style={[styles.infoLabel, { color: subColor }]}>
-            버전
-          </ThemedText>
+          <ThemedText style={styles.infoLabel}>버전</ThemedText>
           <ThemedText style={styles.infoValue}>{versionLabel}</ThemedText>
         </View>
       </View>
@@ -185,7 +170,12 @@ const styles = StyleSheet.create({
   menu: {
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
+    borderColor: DesignColors.bgBorder,
     overflow: "hidden",
+  },
+  rowDivider: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: DesignColors.bgBorder,
   },
   row: {
     flexDirection: "row",
@@ -200,6 +190,15 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: `${DesignColors.textSecondary}18`,
+  },
+  resetIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: `${DesignColors.danger}18`,
   },
   rowText: {
     flex: 1,
@@ -208,12 +207,14 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 13,
+    color: DesignColors.textSecondary,
   },
   resetCard: {
     flexDirection: "row",
     alignItems: "center",
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
+    borderColor: DesignColors.bgBorder,
     paddingHorizontal: 14,
     paddingVertical: 14,
     gap: 12,
@@ -221,10 +222,12 @@ const styles = StyleSheet.create({
   },
   resetLabel: {
     fontSize: 16,
+    color: DesignColors.danger,
   },
   infoSection: {
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
+    borderColor: DesignColors.bgBorder,
     paddingHorizontal: 14,
     paddingVertical: 14,
     gap: 6,
@@ -236,6 +239,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.4,
     marginBottom: 2,
+    color: DesignColors.textSecondary,
   },
   infoName: {
     fontSize: 16,
@@ -249,6 +253,7 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 14,
+    color: DesignColors.textSecondary,
   },
   infoValue: {
     fontSize: 14,

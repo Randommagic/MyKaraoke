@@ -1,4 +1,4 @@
-/** 앱 디자인 시스템 팔레트 (라이트 전용) */
+/** 앱 디자인 시스템 팔레트 (라이트·웜 톤 통일) */
 export const DesignColors = {
   bg: "#FDF6F0",
   bgCard: "#FFF8F4",
@@ -9,7 +9,43 @@ export const DesignColors = {
   textMuted: "#B08878",
   textFaint: "#D4B09A",
 
+  /** 액센트 버튼·TJ 탭 활성 등 위 글자 */
+  textOnAccent: "#ffffff",
+
   accent: "#E8825A",
+
+  /** 장르·필터 칩 활성 배경 */
+  filterChipActiveBg: "#FFF0E8",
+
+  /** 차트 2위 순위 */
+  chartRank2: "#C4A07A",
+
+  /** 목록 행 구분선 */
+  listDivider: "#F5EDE6",
+
+  /** 차트 '내 목록' 뱃지 */
+  inListBadgeBg: "#FDEBC8",
+  inListCheck: "#C47A2A",
+
+  /** 검색·입력 필드 배경 */
+  inputSurface: "#FFF8F4",
+
+  /** 토스트·스낵바 */
+  toastBg: "#323232",
+  toastText: "#ffffff",
+
+  /** 위험 액션(삭제·초기화) */
+  danger: "#c62828",
+
+  /** 모달 딤 */
+  scrim: "rgba(61, 42, 30, 0.42)",
+
+  /** 디버그 로그 레벨 */
+  logError: "#c62828",
+  logWarn: "#f57f17",
+  logInfo: "#1565c0",
+  logDebug: "#546e7a",
+  logDefault: "#37474f",
 
   badgeNoneBg: "#F1EFE8",
   badgeNoneText: "#5F5E5A",

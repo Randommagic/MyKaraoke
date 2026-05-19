@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 
+import { DesignColors } from "@/components/design/colors";
 import { ThemedText } from "@/components/themed-text";
 import { createSongFromYoutubeImport, type Song } from "@/lib/songs-storage";
 import {
@@ -27,11 +28,6 @@ type Props = {
   onAdd: (songs: Song[]) => void | Promise<void>;
   /** 중복 판별용 현재 내 곡 목록 */
   existingSongs: Song[];
-  tint: string;
-  iconMuted: string;
-  textColor: string;
-  screenBg: string;
-  colorScheme: "light" | "dark";
 };
 
 export function YoutubeImportModal({
@@ -39,11 +35,6 @@ export function YoutubeImportModal({
   onClose,
   onAdd,
   existingSongs,
-  tint,
-  iconMuted,
-  textColor,
-  screenBg,
-  colorScheme,
 }: Props) {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
@@ -64,15 +55,6 @@ export function YoutubeImportModal({
     setItems([]);
     setSelected(new Set());
   }, [visible]);
-
-  const inputStyle = useMemo(
-    () => ({
-      borderColor: iconMuted,
-      color: textColor,
-      backgroundColor: colorScheme === "dark" ? "#1c1c1e" : "#f2f2f7",
-    }),
-    [colorScheme, iconMuted, textColor],
-  );
 
   const selectableVideoIds = useCallback(
     (list: YoutubeImportItem[]) =>
@@ -147,11 +129,11 @@ export function YoutubeImportModal({
     >
       <KeyboardAvoidingView style={styles.modalRoot} behavior="padding">
         <Pressable style={styles.modalBackdrop} onPress={onClose} />
-        <View style={[styles.modalCard, { backgroundColor: screenBg }]}>
+        <View style={styles.modalCard}>
           <ThemedText type="subtitle" style={styles.modalTitle}>
             YouTube에서 가져오기
           </ThemedText>
-          <ThemedText style={[styles.hint, { color: iconMuted }]}>
+          <ThemedText style={styles.hint}>
             영상 또는 재생목록 URL을 넣고 불러오기를 누르세요.
           </ThemedText>
 
@@ -162,8 +144,8 @@ export function YoutubeImportModal({
             autoCorrect={false}
             keyboardType="url"
             placeholder="https://www.youtube.com/watch?v=… 또는 …&list=…"
-            placeholderTextColor={iconMuted}
-            style={[styles.urlInput, inputStyle]}
+            placeholderTextColor={DesignColors.textMuted}
+            style={styles.urlInput}
           />
 
           <Pressable
@@ -171,38 +153,29 @@ export function YoutubeImportModal({
             disabled={loading}
             style={({ pressed }) => [
               styles.fetchBtn,
-              {
-                backgroundColor: tint,
-                opacity: loading ? 0.6 : pressed ? 0.88 : 1,
-              },
+              { opacity: loading ? 0.6 : pressed ? 0.88 : 1 },
             ]}
           >
             {loading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={DesignColors.textOnAccent} />
             ) : (
               <ThemedText style={styles.fetchBtnLabel}>불러오기</ThemedText>
             )}
           </Pressable>
 
           {error ? (
-            <ThemedText style={[styles.errorText, { color: "#c62828" }]}>
-              {error}
-            </ThemedText>
+            <ThemedText style={styles.errorText}>{error}</ThemedText>
           ) : null}
 
           {items.length > 0 ? (
             <>
               <View style={styles.selectRow}>
                 <Pressable onPress={selectAll} style={styles.selectLink}>
-                  <ThemedText style={{ color: tint, fontWeight: "600" }}>
-                    전체 선택
-                  </ThemedText>
+                  <ThemedText style={styles.selectLinkLabel}>전체 선택</ThemedText>
                 </Pressable>
-                <ThemedText style={{ color: iconMuted }}> | </ThemedText>
+                <ThemedText style={styles.selectDivider}> | </ThemedText>
                 <Pressable onPress={selectNone} style={styles.selectLink}>
-                  <ThemedText style={{ color: tint, fontWeight: "600" }}>
-                    전체 해제
-                  </ThemedText>
+                  <ThemedText style={styles.selectLinkLabel}>전체 해제</ThemedText>
                 </Pressable>
               </View>
               <FlatList
@@ -219,19 +192,12 @@ export function YoutubeImportModal({
                       disabled={alreadyAdded}
                       style={({ pressed }) => [
                         styles.row,
-                        {
-                          borderColor: iconMuted,
-                          backgroundColor: alreadyAdded
-                            ? colorScheme === "dark"
-                              ? "#1c1c1e"
-                              : "#ececee"
-                            : on
-                              ? `${tint}14`
-                              : colorScheme === "dark"
-                                ? "#252528"
-                                : "#fafafa",
-                          opacity: alreadyAdded ? 0.72 : pressed ? 0.85 : 1,
-                        },
+                        alreadyAdded
+                          ? styles.rowAdded
+                          : on
+                            ? styles.rowSelected
+                            : styles.rowDefault,
+                        { opacity: alreadyAdded ? 0.72 : pressed ? 0.85 : 1 },
                       ]}
                     >
                       <Ionicons
@@ -244,7 +210,11 @@ export function YoutubeImportModal({
                         }
                         size={22}
                         color={
-                          alreadyAdded ? iconMuted : on ? tint : iconMuted
+                          alreadyAdded
+                            ? DesignColors.textMuted
+                            : on
+                              ? DesignColors.accent
+                              : DesignColors.textSecondary
                         }
                         style={styles.checkIcon}
                       />
@@ -252,23 +222,20 @@ export function YoutubeImportModal({
                         <ThemedText
                           type="defaultSemiBold"
                           numberOfLines={2}
-                          style={{
-                            color: alreadyAdded ? iconMuted : textColor,
-                          }}
+                          style={
+                            alreadyAdded
+                              ? styles.rowTitleMuted
+                              : styles.rowTitle
+                          }
                         >
                           {item.title}
                         </ThemedText>
                         {alreadyAdded ? (
-                          <ThemedText
-                            style={[styles.addedBadge, { color: iconMuted }]}
-                          >
+                          <ThemedText style={styles.addedBadge}>
                             이미 추가됨
                           </ThemedText>
                         ) : (
-                          <ThemedText
-                            style={[styles.urlLine, { color: iconMuted }]}
-                            numberOfLines={1}
-                          >
+                          <ThemedText style={styles.urlLine} numberOfLines={1}>
                             {item.watchUrl}
                           </ThemedText>
                         )}
@@ -288,7 +255,7 @@ export function YoutubeImportModal({
                 { opacity: pressed ? 0.65 : 1 },
               ]}
             >
-              <ThemedText style={{ color: iconMuted }}>닫기</ThemedText>
+              <ThemedText style={styles.closeLabel}>닫기</ThemedText>
             </Pressable>
             <View style={{ flex: 1 }} />
             <Pressable
@@ -297,7 +264,6 @@ export function YoutubeImportModal({
               style={({ pressed }) => [
                 styles.primaryBtn,
                 {
-                  backgroundColor: tint,
                   opacity: selectedCount === 0 ? 0.45 : pressed ? 0.85 : 1,
                 },
               ]}
@@ -321,7 +287,7 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.45)",
+    backgroundColor: DesignColors.scrim,
   },
   modalCard: {
     borderRadius: 16,
@@ -330,6 +296,7 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 520,
     alignSelf: "center",
+    backgroundColor: DesignColors.bgCard,
   },
   modalTitle: {
     marginBottom: 8,
@@ -338,10 +305,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
     marginBottom: 12,
+    color: DesignColors.textMuted,
   },
   urlInput: {
     borderWidth: 1,
     borderRadius: 10,
+    borderColor: DesignColors.bgBorder,
+    backgroundColor: DesignColors.inputSurface,
+    color: DesignColors.textPrimary,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 15,
@@ -353,15 +324,27 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 10,
+    backgroundColor: DesignColors.accent,
   },
   fetchBtnLabel: {
-    color: "#fff",
+    color: DesignColors.textOnAccent,
     fontWeight: "700",
     fontSize: 16,
   },
   errorText: {
     fontSize: 13,
     marginBottom: 8,
+    color: DesignColors.danger,
+  },
+  selectLinkLabel: {
+    color: DesignColors.accent,
+    fontWeight: "600",
+  },
+  selectDivider: {
+    color: DesignColors.textMuted,
+  },
+  closeLabel: {
+    color: DesignColors.textMuted,
   },
   selectRow: {
     flexDirection: "row",
@@ -384,6 +367,23 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 10,
     marginBottom: 8,
+    borderColor: DesignColors.bgBorder,
+  },
+  rowDefault: {
+    backgroundColor: DesignColors.bg,
+  },
+  rowSelected: {
+    backgroundColor: `${DesignColors.accent}14`,
+    borderColor: DesignColors.accent,
+  },
+  rowAdded: {
+    backgroundColor: DesignColors.bgCard,
+  },
+  rowTitle: {
+    color: DesignColors.textPrimary,
+  },
+  rowTitleMuted: {
+    color: DesignColors.textMuted,
   },
   checkIcon: {
     marginRight: 10,
@@ -397,11 +397,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     marginTop: 4,
+    color: DesignColors.textMuted,
   },
   urlLine: {
     fontSize: 11,
     marginTop: 4,
     fontFamily: "monospace",
+    color: DesignColors.textMuted,
   },
   footer: {
     flexDirection: "row",
@@ -416,9 +418,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 16,
+    backgroundColor: DesignColors.accent,
   },
   primaryBtnLabel: {
-    color: "#fff",
+    color: DesignColors.textOnAccent,
     fontWeight: "700",
     fontSize: 15,
   },

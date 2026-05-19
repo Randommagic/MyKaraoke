@@ -1,4 +1,4 @@
-import { useThemeColor } from "@/hooks/use-theme-color";
+import { DesignColors } from "@/components/design/colors";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -24,8 +24,7 @@ type Props = {
 };
 
 export function MarqueeText({ text, color: colorProp, style }: Props) {
-  const themeTextColor = useThemeColor({}, "text");
-  const textColor = colorProp ?? themeTextColor;
+  const textColor = colorProp ?? DesignColors.textPrimary;
   const anim = useRef(new Animated.Value(0)).current;
   const [containerW, setContainerW] = useState(0);
   const [textW, setTextW] = useState<number | null>(null);

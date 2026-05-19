@@ -11,11 +11,9 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 
+import { DesignColors } from "@/components/design/colors";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { Colors } from "@/constants/theme";
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useThemeColor } from "@/hooks/use-theme-color";
 import {
   clearDebugLogs,
   getDebugLogs,
@@ -24,31 +22,23 @@ import {
 } from "@/lib/debug-log-buffer";
 import { runStorageDiagnostics, readRawSongsStorageForDebug } from "@/lib/songs-storage";
 
-function levelColor(
-  level: LogEntry["level"],
-  scheme: "light" | "dark",
-): string {
+function levelColor(level: LogEntry["level"]): string {
   switch (level) {
     case "error":
-      return scheme === "dark" ? "#ff8a80" : "#c62828";
+      return DesignColors.logError;
     case "warn":
-      return scheme === "dark" ? "#ffe082" : "#f57f17";
+      return DesignColors.logWarn;
     case "info":
-      return scheme === "dark" ? "#90caf9" : "#1565c0";
+      return DesignColors.logInfo;
     case "debug":
-      return scheme === "dark" ? "#b0bec5" : "#546e7a";
+      return DesignColors.logDebug;
     default:
-      return scheme === "dark" ? "#cfd8dc" : "#37474f";
+      return DesignColors.logDefault;
   }
 }
 
 export default function SettingsLogScreen() {
   const navigation = useNavigation();
-  const colorScheme = useColorScheme() ?? "light";
-  const palette = Colors[colorScheme];
-  const tint = useThemeColor({}, "tint");
-  const text = useThemeColor({}, "text");
-  const iconMuted = useThemeColor({}, "icon");
 
   const [logs, setLogs] = useState<LogEntry[]>(() => getDebugLogs());
   const [diagRunning, setDiagRunning] = useState(false);
@@ -78,16 +68,20 @@ export default function SettingsLogScreen() {
           hitSlop={8}
           style={({ pressed }) => [
             styles.clearBtn,
-            { borderColor: palette.tint, opacity: pressed ? 0.7 : 1 },
+            { borderColor: DesignColors.accent, opacity: pressed ? 0.7 : 1 },
           ]}
           accessibilityRole="button"
           accessibilityLabel="비우기"
         >
-          <ThemedText style={{ color: tint, fontWeight: "600" }}>비우기</ThemedText>
+          <ThemedText
+            style={{ color: DesignColors.accent, fontWeight: "600" }}
+          >
+            비우기
+          </ThemedText>
         </Pressable>
       ),
     });
-  }, [navigation, onClear, palette.tint, tint]);
+  }, [navigation, onClear]);
 
   const onLoadRawFile = useCallback(async () => {
     setRawLoading(true);
@@ -114,7 +108,7 @@ export default function SettingsLogScreen() {
   const renderItem: ListRenderItem<LogEntry> = useCallback(
     ({ item }) => (
       <View style={styles.row}>
-        <Text style={[styles.time, { color: iconMuted }]}>
+        <Text style={styles.time}>
           {new Date(item.t).toLocaleTimeString(undefined, {
             hour12: false,
             hour: "2-digit",
@@ -125,23 +119,23 @@ export default function SettingsLogScreen() {
         <Text
           style={[
             styles.level,
-            { color: levelColor(item.level, colorScheme) },
+            { color: levelColor(item.level) },
           ]}
         >
           {item.level.toUpperCase()}
         </Text>
-        <Text style={[styles.message, { color: text }]} selectable>
+        <Text style={styles.message} selectable>
           {item.message}
         </Text>
       </View>
     ),
-    [colorScheme, iconMuted, text],
+    [],
   );
 
   const listHeader = useMemo(
     () => (
       <View style={styles.headerBlock}>
-        <ThemedText style={[styles.hint, { color: iconMuted }]}>
+        <ThemedText style={styles.hint}>
           아래는 앱이 직접 남기는 로그와,{" "}
           <ThemedText type="defaultSemiBold">console.*</ThemedText> 후킹 결과입니다.
           Metro 터미널·OS 네이티브 로그는 기본적으로 여기에 안 나옵니다.
@@ -153,18 +147,13 @@ export default function SettingsLogScreen() {
             disabled={diagRunning}
             style={({ pressed }) => [
               styles.diagBtn,
-              {
-                borderColor: palette.tint,
-                opacity: diagRunning ? 0.5 : pressed ? 0.85 : 1,
-              },
+              { opacity: diagRunning ? 0.5 : pressed ? 0.85 : 1 },
             ]}
           >
             {diagRunning ? (
-              <ActivityIndicator color={tint} />
+              <ActivityIndicator color={DesignColors.accent} />
             ) : (
-              <ThemedText style={{ color: tint, fontWeight: "700" }}>
-                저장소 점검
-              </ThemedText>
+              <ThemedText style={styles.diagBtnLabel}>저장소 점검</ThemedText>
             )}
           </Pressable>
           <Pressable
@@ -173,36 +162,26 @@ export default function SettingsLogScreen() {
             style={({ pressed }) => [
               styles.diagBtn,
               styles.diagBtnSecond,
-              {
-                borderColor: palette.tint,
-                opacity: rawLoading ? 0.5 : pressed ? 0.85 : 1,
-              },
+              { opacity: rawLoading ? 0.5 : pressed ? 0.85 : 1 },
             ]}
           >
             {rawLoading ? (
-              <ActivityIndicator color={tint} />
+              <ActivityIndicator color={DesignColors.accent} />
             ) : (
-              <ThemedText style={{ color: tint, fontWeight: "700" }}>
-                곡 파일 내용
-              </ThemedText>
+              <ThemedText style={styles.diagBtnLabel}>곡 파일 내용</ThemedText>
             )}
           </Pressable>
         </View>
 
         {diagLines && diagLines.length > 0 ? (
-          <View
-            style={[
-              styles.diagResult,
-              { borderColor: iconMuted, backgroundColor: `${iconMuted}18` },
-            ]}
-          >
+          <View style={styles.diagResult}>
             <ThemedText type="defaultSemiBold" style={{ marginBottom: 6 }}>
               점검 결과
             </ThemedText>
             {diagLines.map((l, i) => (
               <Text
                 key={`${i}-${l.slice(0, 40)}`}
-                style={[styles.diagLine, { color: text }]}
+                style={styles.diagLine}
                 selectable
               >
                 {l}
@@ -212,20 +191,11 @@ export default function SettingsLogScreen() {
         ) : null}
 
         {rawPathLabel != null && rawFormatted != null ? (
-          <View
-            style={[
-              styles.rawFileBox,
-              { borderColor: iconMuted, backgroundColor: `${iconMuted}10` },
-            ]}
-          >
+          <View style={styles.rawFileBox}>
             <ThemedText type="defaultSemiBold" style={{ marginBottom: 4 }}>
               저장된 곡 JSON
             </ThemedText>
-            <Text
-              style={[styles.rawPath, { color: iconMuted }]}
-              selectable
-              numberOfLines={3}
-            >
+            <Text style={styles.rawPath} selectable numberOfLines={3}>
               {rawPathLabel}
             </Text>
             <ScrollView
@@ -233,7 +203,7 @@ export default function SettingsLogScreen() {
               nestedScrollEnabled
               showsVerticalScrollIndicator
             >
-              <Text style={[styles.rawContent, { color: text }]} selectable>
+              <Text style={styles.rawContent} selectable>
                 {rawFormatted}
               </Text>
             </ScrollView>
@@ -241,19 +211,7 @@ export default function SettingsLogScreen() {
         ) : null}
       </View>
     ),
-    [
-      diagLines,
-      diagRunning,
-      iconMuted,
-      onLoadRawFile,
-      onRunDiag,
-      palette.tint,
-      rawFormatted,
-      rawLoading,
-      rawPathLabel,
-      text,
-      tint,
-    ],
+    [diagLines, diagRunning, onLoadRawFile, onRunDiag, rawFormatted, rawLoading, rawPathLabel],
   );
 
   return (
@@ -265,7 +223,7 @@ export default function SettingsLogScreen() {
         ListHeaderComponent={listHeader}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
-          <ThemedText style={{ color: iconMuted, marginTop: 8, textAlign: "center" }}>
+          <ThemedText style={styles.emptyList}>
             아직 로그가 없습니다. 홈에서 곡 저장을 시도하거나「저장소 점검」을 눌러
             보세요.
           </ThemedText>
@@ -294,6 +252,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginBottom: 10,
     lineHeight: 18,
+    color: DesignColors.textMuted,
+  },
+  emptyList: {
+    color: DesignColors.textMuted,
+    marginTop: 8,
+    textAlign: "center",
   },
   diagRow: {
     flexDirection: "row",
@@ -305,11 +269,16 @@ const styles = StyleSheet.create({
   diagBtn: {
     borderWidth: 1,
     borderRadius: 8,
+    borderColor: DesignColors.accent,
     paddingHorizontal: 14,
     paddingVertical: 10,
     minWidth: 120,
     alignItems: "center",
     justifyContent: "center",
+  },
+  diagBtnLabel: {
+    color: DesignColors.accent,
+    fontWeight: "700",
   },
   diagBtnSecond: {
     minWidth: 130,
@@ -317,6 +286,8 @@ const styles = StyleSheet.create({
   diagResult: {
     borderWidth: 1,
     borderRadius: 10,
+    borderColor: DesignColors.bgBorder,
+    backgroundColor: `${DesignColors.textSecondary}18`,
     padding: 10,
     marginBottom: 12,
   },
@@ -324,10 +295,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "monospace",
     marginBottom: 4,
+    color: DesignColors.textPrimary,
   },
   rawFileBox: {
     borderWidth: 1,
     borderRadius: 10,
+    borderColor: DesignColors.bgBorder,
+    backgroundColor: `${DesignColors.textSecondary}10`,
     padding: 10,
     marginBottom: 12,
   },
@@ -335,6 +309,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: "monospace",
     marginBottom: 8,
+    color: DesignColors.textMuted,
   },
   rawScroll: {
     maxHeight: 280,
@@ -343,6 +318,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "monospace",
     lineHeight: 18,
+    color: DesignColors.textPrimary,
   },
   listContent: {
     paddingBottom: 24,
@@ -351,12 +327,13 @@ const styles = StyleSheet.create({
   row: {
     paddingVertical: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(128,128,128,0.35)",
+    borderBottomColor: DesignColors.listDivider,
   },
   time: {
     fontSize: 11,
     fontVariant: ["tabular-nums"],
     marginBottom: 2,
+    color: DesignColors.textMuted,
   },
   level: {
     fontSize: 11,
@@ -366,5 +343,6 @@ const styles = StyleSheet.create({
   message: {
     fontSize: 13,
     fontFamily: "monospace",
+    color: DesignColors.textPrimary,
   },
 });

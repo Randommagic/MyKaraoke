@@ -10,10 +10,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useConfirm } from "@/components/design/confirm-dialog-context";
+import { DesignColors } from "@/components/design/colors";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useThemeColor } from "@/hooks/use-theme-color";
 import { logDebug } from "@/lib/debug-log-buffer";
 import {
   copySongsBackupToClipboard,
@@ -25,13 +24,6 @@ import { loadSongs, saveSongs } from "@/lib/songs-storage";
 export default function BackupScreen() {
   const confirm = useConfirm();
   const insets = useSafeAreaInsets();
-  const colorScheme = useColorScheme() ?? "light";
-  const tint = useThemeColor({}, "tint");
-  const subColor = useThemeColor({ light: "#636366", dark: "#98989d" }, "icon");
-  const borderColor = useThemeColor(
-    { light: "#e5e5ea", dark: "#3a3a3c" },
-    "icon",
-  );
 
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -139,65 +131,49 @@ export default function BackupScreen() {
   return (
     <ThemedView style={[styles.root, { paddingBottom: insets.bottom + 24 }]}>
       <View style={styles.content}>
-        <ThemedText style={[styles.description, { color: subColor }]}>
+        <ThemedText style={styles.description}>
           곡 목록을 Base64 문자열로 클립보드에 복사하거나, 복사해 둔 문자열을
           붙여넣은 뒤 불러올 수 있습니다.
         </ThemedText>
 
-        <ThemedText style={[styles.sectionLabel, { color: subColor }]}>
-          보내기
-        </ThemedText>
+        <ThemedText style={styles.sectionLabel}>보내기</ThemedText>
         <Pressable
           onPress={() => void onExport()}
           disabled={busy}
           style={({ pressed }) => [
             styles.actionBtn,
-            {
-              borderColor: tint,
-              backgroundColor: `${tint}14`,
-              opacity: exporting ? 0.55 : pressed ? 0.85 : 1,
-            },
+            { opacity: exporting ? 0.55 : pressed ? 0.85 : 1 },
           ]}
           accessibilityRole="button"
           accessibilityLabel="보내기"
         >
           {exporting ? (
-            <ActivityIndicator color={tint} />
+            <ActivityIndicator color={DesignColors.accent} />
           ) : (
-            <ThemedText style={[styles.actionBtnText, { color: tint }]}>
-              보내기
-            </ThemedText>
+            <ThemedText style={styles.actionBtnText}>보내기</ThemedText>
           )}
         </Pressable>
 
-        <ThemedText style={[styles.sectionLabel, { color: subColor }]}>
-          불러오기
-        </ThemedText>
+        <ThemedText style={styles.sectionLabel}>불러오기</ThemedText>
         <Pressable
           onPress={onImport}
           disabled={busy}
           style={({ pressed }) => [
             styles.actionBtn,
-            {
-              borderColor: tint,
-              backgroundColor: `${tint}14`,
-              opacity: importing ? 0.55 : pressed ? 0.85 : 1,
-            },
+            { opacity: importing ? 0.55 : pressed ? 0.85 : 1 },
           ]}
           accessibilityRole="button"
           accessibilityLabel="불러오기"
         >
           {importing ? (
-            <ActivityIndicator color={tint} />
+            <ActivityIndicator color={DesignColors.accent} />
           ) : (
-            <ThemedText style={[styles.actionBtnText, { color: tint }]}>
-              불러오기
-            </ThemedText>
+            <ThemedText style={styles.actionBtnText}>불러오기</ThemedText>
           )}
         </Pressable>
 
-        <View style={[styles.noteBox, { borderColor }]}>
-          <ThemedText style={[styles.note, { color: subColor }]}>
+        <View style={styles.noteBox}>
+          <ThemedText style={styles.note}>
             불러오기는 클립보드의 Base64 문자열을 읽습니다. 다른 기기에서
             보내기로 복사한 뒤, 이 기기 클립보드에 붙여넣고 불러오기를
             누르세요. 기존 곡 목록은 교체됩니다.
@@ -213,7 +189,6 @@ export default function BackupScreen() {
             {
               opacity: toastOpacity,
               bottom: Math.max(insets.bottom, 12) + 16,
-              backgroundColor: colorScheme === "dark" ? "#3a3a3c" : "#323232",
             },
           ]}
         >
@@ -237,6 +212,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
     marginBottom: 6,
+    color: DesignColors.textSecondary,
   },
   sectionLabel: {
     fontSize: 12,
@@ -244,10 +220,13 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.4,
     marginTop: 4,
+    color: DesignColors.textSecondary,
   },
   actionBtn: {
     borderWidth: 1,
     borderRadius: 12,
+    borderColor: DesignColors.accent,
+    backgroundColor: `${DesignColors.accent}14`,
     paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
@@ -256,9 +235,11 @@ const styles = StyleSheet.create({
   actionBtnText: {
     fontWeight: "700",
     fontSize: 16,
+    color: DesignColors.accent,
   },
   noteBox: {
     borderWidth: StyleSheet.hairlineWidth,
+    borderColor: DesignColors.bgBorder,
     borderRadius: 10,
     padding: 12,
     marginTop: 6,
@@ -266,6 +247,7 @@ const styles = StyleSheet.create({
   note: {
     fontSize: 13,
     lineHeight: 19,
+    color: DesignColors.textSecondary,
   },
   toast: {
     position: "absolute",
@@ -273,6 +255,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 24,
+    backgroundColor: DesignColors.toastBg,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
@@ -280,7 +263,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   toastText: {
-    color: "#fff",
+    color: DesignColors.toastText,
     fontSize: 14,
     fontWeight: "600",
   },

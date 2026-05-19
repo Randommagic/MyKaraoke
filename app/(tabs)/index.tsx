@@ -41,8 +41,6 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { YoutubeImportModal } from "@/components/youtube-import-modal";
 import { normalizeYoutubeUrlForStorage } from "@/lib/youtube-import";
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useThemeColor } from "@/hooks/use-theme-color";
 import { logDebug } from "@/lib/debug-log-buffer";
 import {
   formatTranspose,
@@ -368,13 +366,7 @@ const CREATE_MODAL_ID = "__create__";
 export default function HomeScreen() {
   const confirm = useConfirm();
   const router = useRouter();
-  const colorScheme = useColorScheme() ?? "light";
   const insets = useSafeAreaInsets();
-
-  const screenBg = useThemeColor({}, "background");
-  const textColor = useThemeColor({}, "text");
-  const tint = useThemeColor({}, "tint");
-  const iconMuted = useThemeColor({}, "icon");
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalSongId, setModalSongId] = useState<string | null>(null);
@@ -612,12 +604,11 @@ export default function HomeScreen() {
 
   const inputSurfaceStyle = useMemo(
     () => ({
-      borderColor: iconMuted,
-      color: textColor,
-      backgroundColor:
-        colorScheme === "dark" ? "#1c1c1e" : DesignColors.bgCard,
+      borderColor: DesignColors.bgBorder,
+      color: DesignColors.textPrimary,
+      backgroundColor: DesignColors.inputSurface,
     }),
-    [colorScheme, iconMuted, textColor],
+    [],
   );
 
   const filteredSongs = useMemo(() => {
@@ -652,7 +643,7 @@ export default function HomeScreen() {
   if (loading) {
     return (
       <ThemedView style={[styles.centered, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={tint} />
+        <ActivityIndicator size="large" color={DesignColors.accent} />
       </ThemedView>
     );
   }
@@ -664,28 +655,28 @@ export default function HomeScreen() {
           <ScreenTitle style={styles.homeTitle}>내 노래 목록</ScreenTitle>
           <View style={styles.searchContainer}>
             {isSearchExpanded ? (
-              <View style={[styles.searchInputWrapper, { backgroundColor: colorScheme === "dark" ? "#2c2c2e" : "#f2f2f7" }]}>
+              <View style={styles.searchInputWrapper}>
                 <TextInput
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                   placeholder="제목, 가수 검색"
-                  placeholderTextColor={iconMuted}
-                  style={[styles.searchInput, { color: textColor }]}
+                  placeholderTextColor={DesignColors.textMuted}
+                  style={styles.searchInput}
                   returnKeyType="search"
                   autoFocus
                 />
                 {searchQuery.length > 0 && (
                   <Pressable onPress={() => setSearchQuery("")} style={styles.searchClearBtn} accessibilityLabel="검색어 지우기">
-                    <Ionicons name="close-circle" size={16} color={iconMuted} />
+                    <Ionicons name="close-circle" size={16} color={DesignColors.textMuted} />
                   </Pressable>
                 )}
                 <Pressable onPress={() => { setIsSearchExpanded(false); setSearchQuery(""); }} style={styles.searchCloseBtn} accessibilityLabel="검색 닫기">
-                  <Ionicons name="close" size={20} color={textColor} />
+                  <Ionicons name="close" size={20} color={DesignColors.textPrimary} />
                 </Pressable>
               </View>
             ) : (
               <Pressable onPress={() => setIsSearchExpanded(true)} style={styles.searchIconBtn} accessibilityLabel="검색 열기">
-                <Ionicons name="search" size={24} color={textColor} />
+                <Ionicons name="search" size={24} color={DesignColors.textPrimary} />
               </Pressable>
             )}
           </View>
@@ -707,7 +698,7 @@ export default function HomeScreen() {
         removeClippedSubviews={false}
         ListEmptyComponent={
           <ThemedText
-            style={{ color: iconMuted, textAlign: "center", marginTop: 24 }}
+            style={styles.emptyListHint}
           >
             {readinessFilter === "all" && searchQuery.length === 0
               ? "등록된 곡이 없습니다. 우하단 + 버튼에서 새 곡을 추가해 보세요."
@@ -720,7 +711,7 @@ export default function HomeScreen() {
         renderItem={({ item, drag, isActive }: RenderItemParams<Song>) => (
           <SwipeableSongRow
             item={item}
-            iconMuted={iconMuted}
+            iconMuted={DesignColors.textSecondary}
             confirm={confirm}
             onOpenDetail={() =>
               router.push({ pathname: "/song/[id]", params: { id: item.id } })
@@ -751,17 +742,7 @@ export default function HomeScreen() {
         pointerEvents="box-none"
       >
         {addMenuOpen ? (
-          <View
-            style={[
-              styles.fabBubble,
-              {
-                backgroundColor:
-                  colorScheme === "dark" ? "#2c2c2e" : DesignColors.bgCard,
-                borderColor: DesignColors.bgBorder,
-              },
-            ]}
-            accessibilityRole="menu"
-          >
+          <View style={styles.fabBubble} accessibilityRole="menu">
             <Pressable
               onPress={() => {
                 setAddMenuOpen(false);
@@ -774,14 +755,10 @@ export default function HomeScreen() {
               accessibilityRole="menuitem"
               accessibilityLabel="직접 추가"
             >
-              <Ionicons name="create-outline" size={22} color={tint} />
-              <ThemedText type="defaultSemiBold" style={{ color: textColor }}>
-                직접 추가
-              </ThemedText>
+              <Ionicons name="create-outline" size={22} color={DesignColors.accent} />
+              <ThemedText type="defaultSemiBold">직접 추가</ThemedText>
             </Pressable>
-            <View
-              style={[styles.fabBubbleDivider, { backgroundColor: iconMuted }]}
-            />
+            <View style={styles.fabBubbleDivider} />
             <Pressable
               onPress={() => {
                 setAddMenuOpen(false);
@@ -795,9 +772,7 @@ export default function HomeScreen() {
               accessibilityLabel="YouTube에서 추가"
             >
               <Ionicons name="logo-youtube" size={22} color="#FF0000" />
-              <ThemedText type="defaultSemiBold" style={{ color: textColor }}>
-                YouTube에서 추가
-              </ThemedText>
+              <ThemedText type="defaultSemiBold">YouTube에서 추가</ThemedText>
             </Pressable>
           </View>
         ) : null}
@@ -814,7 +789,7 @@ export default function HomeScreen() {
           accessibilityLabel="곡 추가 메뉴 열기"
           accessibilityState={{ expanded: addMenuOpen }}
         >
-          <Ionicons name="add" size={34} color="#fff" />
+          <Ionicons name="add" size={34} color={DesignColors.textOnAccent} />
         </Pressable>
       </View>
 
@@ -826,7 +801,7 @@ export default function HomeScreen() {
       >
         <KeyboardAvoidingView style={styles.modalRoot}>
           <Pressable style={styles.modalBackdrop} onPress={closeModal} />
-          <View style={[styles.modalCard, { backgroundColor: screenBg }]}>
+          <View style={styles.modalCard}>
             <ThemedText type="subtitle" style={styles.modalTitle}>
               새 곡 추가
             </ThemedText>
@@ -841,7 +816,7 @@ export default function HomeScreen() {
                 value={draftTitle}
                 onChangeText={setDraftTitle}
                 placeholder="제목"
-                placeholderTextColor={iconMuted}
+                placeholderTextColor={DesignColors.textMuted}
                 style={[styles.modalInput, inputSurfaceStyle]}
                 autoFocus
               />
@@ -851,7 +826,7 @@ export default function HomeScreen() {
                 value={draftArtist}
                 onChangeText={setDraftArtist}
                 placeholder="가수명"
-                placeholderTextColor={iconMuted}
+                placeholderTextColor={DesignColors.textMuted}
                 style={[styles.modalInput, inputSurfaceStyle]}
               />
 
@@ -865,7 +840,7 @@ export default function HomeScreen() {
                       setDraftTjNumber(sanitizeKaraokeDigits(text))
                     }
                     placeholder="번호"
-                    placeholderTextColor={iconMuted}
+                    placeholderTextColor={DesignColors.textMuted}
                     keyboardType="number-pad"
                     maxLength={6}
                     style={[
@@ -883,7 +858,7 @@ export default function HomeScreen() {
                       setDraftKyNumber(sanitizeKaraokeDigits(text))
                     }
                     placeholder="번호"
-                    placeholderTextColor={iconMuted}
+                    placeholderTextColor={DesignColors.textMuted}
                     keyboardType="number-pad"
                     maxLength={6}
                     style={[
@@ -905,19 +880,15 @@ export default function HomeScreen() {
                       onPress={() => setDraftGender(opt.value)}
                       style={[
                         styles.segment,
-                        {
-                          borderColor: selected ? tint : iconMuted,
-                          backgroundColor: selected
-                            ? `${tint}22`
-                            : "transparent",
-                        },
+                        selected ? styles.segmentSelected : null,
                       ]}
                     >
                       <ThemedText
-                        style={{
-                          fontWeight: selected ? "700" : "500",
-                          color: selected ? tint : textColor,
-                        }}
+                        style={
+                          selected
+                            ? styles.segmentLabelSelected
+                            : styles.segmentLabel
+                        }
                       >
                         {opt.label}
                       </ThemedText>
@@ -938,23 +909,17 @@ export default function HomeScreen() {
                       style={[
                         styles.segment,
                         styles.modalReadinessSegment,
-                        {
-                          borderColor: selected ? tint : iconMuted,
-                          backgroundColor: selected
-                            ? `${tint}22`
-                            : "transparent",
-                        },
+                        selected ? styles.segmentSelected : null,
                       ]}
                     >
                       <Ionicons name={rv.icon} size={20} color={rv.color} />
                       <ThemedText
-                        style={{
-                          marginTop: 6,
-                          fontWeight: selected ? "700" : "500",
-                          color: selected ? tint : textColor,
-                          fontSize: 11,
-                          textAlign: "center",
-                        }}
+                        style={[
+                          styles.segmentReadinessLabel,
+                          selected
+                            ? styles.segmentLabelSelected
+                            : styles.segmentLabel,
+                        ]}
                         numberOfLines={2}
                       >
                         {opt.label}
@@ -970,7 +935,7 @@ export default function HomeScreen() {
               <View style={styles.transposeRow}>
                 <Pressable
                   onPress={() => bumpTranspose(-1)}
-                  style={[styles.stepBtn, { borderColor: iconMuted }]}
+                  style={styles.stepBtn}
                 >
                   <ThemedText type="defaultSemiBold">−</ThemedText>
                 </Pressable>
@@ -981,19 +946,13 @@ export default function HomeScreen() {
                   >
                     {formatTranspose(draftTranspose)}
                   </ThemedText>
-                  <ThemedText
-                    style={{
-                      color: iconMuted,
-                      fontSize: 12,
-                      textAlign: "center",
-                    }}
-                  >
+                  <ThemedText style={styles.transposeHint}>
                     반음 ±12까지
                   </ThemedText>
                 </View>
                 <Pressable
                   onPress={() => bumpTranspose(1)}
-                  style={[styles.stepBtn, { borderColor: iconMuted }]}
+                  style={styles.stepBtn}
                 >
                   <ThemedText type="defaultSemiBold">+</ThemedText>
                 </Pressable>
@@ -1004,7 +963,7 @@ export default function HomeScreen() {
                 value={draftMemo}
                 onChangeText={setDraftMemo}
                 placeholder="간단히 적어두기"
-                placeholderTextColor={iconMuted}
+                placeholderTextColor={DesignColors.textMuted}
                 multiline
                 textAlignVertical="top"
                 style={[
@@ -1034,13 +993,13 @@ export default function HomeScreen() {
                   { opacity: pressed ? 0.6 : 1 },
                 ]}
               >
-                <ThemedText style={{ color: iconMuted }}>취소</ThemedText>
+                <ThemedText style={styles.modalCancelLabel}>취소</ThemedText>
               </Pressable>
               <Pressable
                 onPress={handleSaveModal}
                 style={({ pressed }) => [
                   styles.primaryBtn,
-                  { backgroundColor: tint, opacity: pressed ? 0.85 : 1 },
+                  { opacity: pressed ? 0.85 : 1 },
                 ]}
               >
                 <ThemedText style={styles.primaryBtnLabel}>저장</ThemedText>
@@ -1055,11 +1014,6 @@ export default function HomeScreen() {
         onClose={() => setYoutubeImportVisible(false)}
         onAdd={handleYoutubeImportAdd}
         existingSongs={songs}
-        tint={tint}
-        iconMuted={iconMuted}
-        textColor={textColor}
-        screenBg={screenBg}
-        colorScheme={colorScheme}
       />
 
       {toastVisible ? (
@@ -1070,7 +1024,7 @@ export default function HomeScreen() {
             {
               opacity: toastOpacity,
               bottom: Math.max(insets.bottom, 12) + 56,
-              backgroundColor: colorScheme === "dark" ? "#3a3a3c" : "#323232",
+              backgroundColor: DesignColors.toastBg,
             },
           ]}
         >
@@ -1124,11 +1078,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     height: 36,
     width: "100%",
+    backgroundColor: DesignColors.inputSurface,
   },
   searchInput: {
     flex: 1,
     fontSize: 15,
     paddingVertical: 0,
+    color: DesignColors.textPrimary,
+  },
+  emptyListHint: {
+    color: DesignColors.textMuted,
+    textAlign: "center",
+    marginTop: 24,
   },
   searchClearBtn: {
     padding: 4,
@@ -1156,6 +1117,8 @@ const styles = StyleSheet.create({
     minWidth: 208,
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
+    borderColor: DesignColors.bgBorder,
+    backgroundColor: DesignColors.bgCard,
     overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
@@ -1172,7 +1135,8 @@ const styles = StyleSheet.create({
   },
   fabBubbleDivider: {
     height: StyleSheet.hairlineWidth,
-    opacity: 0.35,
+    backgroundColor: DesignColors.bgBorder,
+    opacity: 0.85,
   },
   fabMain: {
     width: 52,
@@ -1269,7 +1233,7 @@ const styles = StyleSheet.create({
     color: DesignColors.textMuted,
   },
   readinessFilterCountTextActive: {
-    color: "#fff",
+    color: DesignColors.textOnAccent,
   },
   listContent: {
     paddingTop: 12,
@@ -1335,7 +1299,7 @@ const styles = StyleSheet.create({
     zIndex: 60,
   },
   toastText: {
-    color: "#fff",
+    color: DesignColors.toastText,
     fontSize: 14,
     fontWeight: "600",
     textAlign: "center",
@@ -1347,7 +1311,7 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.45)",
+    backgroundColor: DesignColors.scrim,
   },
   modalCard: {
     borderRadius: 16,
@@ -1356,6 +1320,7 @@ const styles = StyleSheet.create({
     width: "100%",
     alignSelf: "center",
     maxHeight: "92%",
+    backgroundColor: DesignColors.bgCard,
   },
   modalTitle: {
     marginBottom: 16,
@@ -1404,6 +1369,24 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: "center",
+    borderColor: DesignColors.bgBorder,
+  },
+  segmentSelected: {
+    borderColor: DesignColors.accent,
+    backgroundColor: `${DesignColors.accent}22`,
+  },
+  segmentLabel: {
+    fontWeight: "500",
+    color: DesignColors.textPrimary,
+  },
+  segmentLabelSelected: {
+    fontWeight: "700",
+    color: DesignColors.accent,
+  },
+  segmentReadinessLabel: {
+    marginTop: 6,
+    fontSize: 11,
+    textAlign: "center",
   },
   modalReadinessSegment: {
     justifyContent: "center",
@@ -1421,11 +1404,20 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 12,
     borderWidth: 1,
+    borderColor: DesignColors.bgBorder,
     alignItems: "center",
     justifyContent: "center",
   },
   transposeValue: {
     flex: 1,
+  },
+  transposeHint: {
+    color: DesignColors.textMuted,
+    fontSize: 12,
+    textAlign: "center",
+  },
+  modalCancelLabel: {
+    color: DesignColors.textMuted,
   },
   modalActions: {
     flexDirection: "row",
@@ -1442,9 +1434,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 20,
+    backgroundColor: DesignColors.accent,
   },
   primaryBtnLabel: {
-    color: "#fff",
+    color: DesignColors.textOnAccent,
     fontWeight: "700",
     fontSize: 16,
   },

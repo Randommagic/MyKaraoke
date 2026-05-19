@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(61, 42, 30, 0.42)",
+    backgroundColor: DesignColors.scrim,
   },
   card: {
     backgroundColor: DesignColors.bgCard,
@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
   confirmLabel: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#fff",
+    color: DesignColors.textOnAccent,
   },
   confirmLabelDestructive: {
     color: DesignColors.swipeDeleteText,

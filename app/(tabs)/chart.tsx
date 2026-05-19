@@ -12,6 +12,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Text,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -20,9 +21,6 @@ import { DesignColors } from "@/components/design/colors";
 import { MarqueeText } from "@/components/design/MarqueeText";
 import { ScreenTitle } from "@/components/design/ScreenTitle";
 import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useThemeColor } from "@/hooks/use-theme-color";
 import { logDebug } from "@/lib/debug-log-buffer";
 import { sanitizeKaraokeDigits } from "@/lib/song-form-helpers";
 import {
@@ -43,22 +41,39 @@ type ChartCategoryId = "all" | TjChartStrType;
 const CATEGORY_SCROLL_EDGE_THRESHOLD = 8;
 const CATEGORY_FADE_WIDTH = 28;
 
+function getRankTextStyle(rankStr: string): {
+  fontSize: number;
+  color: string;
+  fontWeight: "600" | "500";
+} {
+  const n = Number.parseInt(rankStr.trim(), 10);
+  if (n === 1) {
+    return {
+      fontSize: 17,
+      color: DesignColors.accent,
+      fontWeight: "600",
+    };
+  }
+  if (n === 2) {
+    return {
+      fontSize: 16,
+      color: DesignColors.chartRank2,
+      fontWeight: "600",
+    };
+  }
+  return {
+    fontSize: 14,
+    color: DesignColors.textMuted,
+    fontWeight: "500",
+  };
+}
+
 function ChartCategoryScroller({
   categoryId,
   onSelect,
-  tint,
-  textColor,
-  borderColor,
-  colorScheme,
-  screenBg,
 }: {
   categoryId: ChartCategoryId;
   onSelect: (id: ChartCategoryId) => void;
-  tint: string;
-  textColor: string;
-  borderColor: string;
-  colorScheme: "light" | "dark";
-  screenBg: string;
 }) {
   const [scrollX, setScrollX] = useState(0);
   const [viewportWidth, setViewportWidth] = useState(0);
@@ -71,9 +86,6 @@ function ChartCategoryScroller({
     canScroll &&
     scrollX + viewportWidth <
       contentWidth - CATEGORY_SCROLL_EDGE_THRESHOLD;
-
-  const chipBgUnselected =
-    colorScheme === "dark" ? "#2c2c2e" : DesignColors.bgCard;
 
   return (
     <View style={styles.categoryScroller}>
@@ -94,32 +106,30 @@ function ChartCategoryScroller({
               onPress={() => onSelect(opt.id)}
               style={({ pressed }) => [
                 styles.categoryChip,
-                {
-                  borderColor: selected ? tint : borderColor,
-                  backgroundColor: selected ? `${tint}22` : chipBgUnselected,
-                  opacity: pressed ? 0.85 : 1,
-                },
+                selected ? styles.categoryChipActive : styles.categoryChipInactive,
+                { opacity: pressed ? 0.85 : 1 },
               ]}
               accessibilityRole="button"
               accessibilityState={{ selected }}
               accessibilityLabel={`${opt.label} 차트`}
             >
-              <ThemedText
-                style={{
-                  fontSize: 14,
-                  fontWeight: selected ? "700" : "500",
-                  color: selected ? tint : textColor,
-                }}
+              <Text
+                style={[
+                  styles.categoryChipLabel,
+                  selected
+                    ? styles.categoryChipLabelActive
+                    : styles.categoryChipLabelInactive,
+                ]}
               >
                 {opt.label}
-              </ThemedText>
+              </Text>
             </Pressable>
           );
         })}
       </ScrollView>
       {showLeftFade ? (
         <LinearGradient
-          colors={[screenBg, "transparent"]}
+          colors={[DesignColors.bg, "transparent"]}
           start={{ x: 0, y: 0.5 }}
           end={{ x: 1, y: 0.5 }}
           style={[styles.categoryFade, styles.categoryFadeLeft]}
@@ -128,7 +138,7 @@ function ChartCategoryScroller({
       ) : null}
       {showRightFade ? (
         <LinearGradient
-          colors={["transparent", screenBg]}
+          colors={["transparent", DesignColors.bg]}
           start={{ x: 0, y: 0.5 }}
           end={{ x: 1, y: 0.5 }}
           style={[styles.categoryFade, styles.categoryFadeRight]}
@@ -147,40 +157,33 @@ function chartCategoryToStrType(
 
 function ChartRow({
   item,
-  borderColor,
-  subColor,
-  rankColor,
-  titleColor,
   isInList,
   onPress,
 }: {
   item: TjTopChartSongItem;
-  borderColor: string;
-  subColor: string;
-  rankColor: string;
-  titleColor: string;
   isInList: boolean;
   onPress: () => void;
 }) {
   const uri = item.imgthumb_path?.trim();
   const rankLabel = item.rank?.trim() || "—";
+  const rankStyle = getRankTextStyle(rankLabel);
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
         styles.row,
-        { borderBottomColor: borderColor, opacity: pressed ? 0.75 : 1 },
+        { opacity: pressed ? 0.75 : 1 },
       ]}
       accessibilityRole="button"
       accessibilityLabel={`${rankLabel}위 ${item.indexTitle} ${item.indexSong}${isInList ? ", 이미 내 리스트에 있음" : ""}, 차트에서 선택`}
     >
       <View style={styles.rankCol}>
-        <ThemedText
-          style={[styles.rankText, { color: rankColor }]}
+        <Text
+          style={[styles.rankText, rankStyle]}
           numberOfLines={1}
         >
           {rankLabel}
-        </ThemedText>
+        </Text>
       </View>
       {uri ? (
         <Image
@@ -190,30 +193,33 @@ function ChartRow({
           accessibilityIgnoresInvertColors
         />
       ) : (
-        <View style={[styles.thumb, styles.thumbPlaceholder]} />
+        <View style={[styles.thumb, styles.thumbPlaceholder]}>
+          <Ionicons
+            name="musical-notes"
+            size={20}
+            color={DesignColors.textFaint}
+          />
+        </View>
       )}
       <View style={styles.rowText}>
         <MarqueeText
           text={item.indexTitle}
-          color={titleColor}
+          color={DesignColors.textPrimary}
           style={styles.chartTitle}
         />
-        <ThemedText
-          style={[styles.artist, { color: subColor }]}
-          numberOfLines={1}
-        >
+        <Text style={styles.artist} numberOfLines={1}>
           {item.indexSong}
-        </ThemedText>
+        </Text>
       </View>
       {isInList ? (
         <View
-          style={styles.inListCheckWrap}
+          style={styles.inListBadge}
           accessibilityLabel="내 리스트에 추가됨"
         >
           <Ionicons
-            name="checkmark-circle"
-            size={22}
-            color={DesignColors.accent}
+            name="checkmark"
+            size={16}
+            color={DesignColors.inListCheck}
           />
         </View>
       ) : null}
@@ -224,16 +230,6 @@ function ChartRow({
 export default function PopularChartScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const colorScheme = useColorScheme() ?? "light";
-  const tint = useThemeColor({}, "tint");
-  const screenBg = useThemeColor({}, "background");
-  const textColor = useThemeColor({}, "text");
-  const borderColor = useThemeColor(
-    { light: "#e5e5ea", dark: "#3a3a3c" },
-    "icon",
-  );
-  const subColor = useThemeColor({ light: "#636366", dark: "#98989d" }, "icon");
-
   const [provider, setProvider] = useState<ChartProvider>("tj");
   const [chartCategory, setChartCategory] = useState<ChartCategoryId>("all");
   const chartStrType = chartCategoryToStrType(chartCategory);
@@ -350,11 +346,6 @@ export default function PopularChartScreen() {
     };
   }, [provider, chartStrType]);
 
-  const chipMuted = useThemeColor(
-    { light: "#8e8e93", dark: "#8e8e93" },
-    "icon",
-  );
-
   const confirmAdd = useCallback(async () => {
     if (!pendingAdd || savingAdd) return;
     setSavingAdd(true);
@@ -399,7 +390,7 @@ export default function PopularChartScreen() {
   };
 
   return (
-    <ThemedView style={[styles.root, { paddingTop: insets.top + 12 }]}>
+    <View style={[styles.root, { paddingTop: insets.top + 12 }]}>
       <View style={styles.header}>
         <ScreenTitle>인기 차트</ScreenTitle>
         <View style={styles.providerRow}>
@@ -412,29 +403,25 @@ export default function PopularChartScreen() {
                 onPress={() => setProvider(key)}
                 style={({ pressed }) => [
                   styles.providerChip,
-                  {
-                    borderColor: selected ? tint : borderColor,
-                    backgroundColor: selected
-                      ? `${tint}22`
-                      : colorScheme === "dark"
-                        ? "#2c2c2e"
-                        : "#f5f5f5",
-                    opacity: pressed ? 0.85 : 1,
-                  },
+                  selected
+                    ? styles.providerChipActive
+                    : styles.providerChipInactive,
+                  { opacity: pressed ? 0.85 : 1 },
                 ]}
                 accessibilityRole="button"
                 accessibilityState={{ selected }}
                 accessibilityLabel={`${label} 차트`}
               >
-                <ThemedText
-                  style={{
-                    fontSize: 15,
-                    fontWeight: selected ? "700" : "500",
-                    color: selected ? tint : textColor,
-                  }}
+                <Text
+                  style={[
+                    styles.providerChipLabel,
+                    selected
+                      ? styles.providerChipLabelActive
+                      : styles.providerChipLabelInactive,
+                  ]}
                 >
                   {label}
-                </ThemedText>
+                </Text>
               </Pressable>
             );
           })}
@@ -443,31 +430,24 @@ export default function PopularChartScreen() {
           <ChartCategoryScroller
             categoryId={chartCategory}
             onSelect={setChartCategory}
-            tint={tint}
-            textColor={textColor}
-            borderColor={borderColor}
-            colorScheme={colorScheme}
-            screenBg={screenBg}
           />
         ) : null}
-        <ThemedText style={[styles.sub, { color: chipMuted }]}>
+        <Text style={styles.periodText}>
           {provider === "tj" ? tjPeriodSubtitle : "KY — 준비중"}
-        </ThemedText>
+        </Text>
       </View>
 
       {provider === "ky" ? (
         <View style={styles.centered}>
-          <ThemedText style={styles.kyPlaceholder}>
-            KY 차트는 준비 중입니다.
-          </ThemedText>
+          <Text style={styles.kyPlaceholder}>KY 차트는 준비 중입니다.</Text>
         </View>
       ) : loading ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={tint} />
+          <ActivityIndicator size="large" color={DesignColors.accent} />
         </View>
       ) : error ? (
         <View style={styles.pad}>
-          <ThemedText style={styles.error}>{error}</ThemedText>
+          <Text style={styles.error}>{error}</Text>
         </View>
       ) : (
         <FlatList
@@ -480,10 +460,6 @@ export default function PopularChartScreen() {
             return (
               <ChartRow
                 item={item}
-                borderColor={borderColor}
-                subColor={subColor}
-                rankColor={textColor}
-                titleColor={textColor}
                 isInList={isInList}
                 onPress={() => setPendingAdd(item)}
               />
@@ -504,26 +480,17 @@ export default function PopularChartScreen() {
           accessibilityLabel="닫기"
         >
           <Pressable
-            style={[
-              styles.bubbleCard,
-              {
-                backgroundColor: colorScheme === "dark" ? "#2c2c2e" : "#fff",
-                borderColor: borderColor,
-              },
-            ]}
+            style={[styles.bubbleCard, styles.bubbleCardSurface]}
             onPress={(e) => e.stopPropagation()}
           >
             <ThemedText type="subtitle" style={styles.bubbleTitle}>
               내 리스트에 추가
             </ThemedText>
-            <ThemedText style={[styles.bubbleQuestion, { color: textColor }]}>
+            <ThemedText style={styles.bubbleQuestion}>
               이 곡을 내 리스트에 추가하시겠습니까?
             </ThemedText>
             {pendingAdd ? (
-              <ThemedText
-                style={[styles.bubbleSummary, { color: subColor }]}
-                numberOfLines={3}
-              >
+              <ThemedText style={styles.bubbleSummary} numberOfLines={3}>
                 {pendingAdd.indexTitle}
                 {"\n"}
                 {pendingAdd.indexSong}
@@ -537,7 +504,7 @@ export default function PopularChartScreen() {
                 style={({ pressed }) => [
                   styles.bubbleBtn,
                   styles.bubbleBtnGhost,
-                  { borderColor: borderColor, opacity: pressed ? 0.75 : 1 },
+                  { opacity: pressed ? 0.75 : 1 },
                 ]}
                 disabled={savingAdd}
                 accessibilityRole="button"
@@ -550,18 +517,13 @@ export default function PopularChartScreen() {
                 style={({ pressed }) => [
                   styles.bubbleBtn,
                   styles.bubbleBtnPrimary,
-                  {
-                    backgroundColor: tint,
-                    opacity: savingAdd ? 0.55 : pressed ? 0.88 : 1,
-                  },
+                  { opacity: savingAdd ? 0.55 : pressed ? 0.88 : 1 },
                 ]}
                 disabled={savingAdd}
                 accessibilityRole="button"
                 accessibilityLabel="추가"
               >
-                <ThemedText
-                  style={{ fontWeight: "700", color: "#fff" }}
-                >
+                <ThemedText style={styles.bubbleBtnPrimaryLabel}>
                   {savingAdd ? "추가 중…" : "추가"}
                 </ThemedText>
               </Pressable>
@@ -582,23 +544,14 @@ export default function PopularChartScreen() {
           accessibilityLabel="닫기"
         >
           <Pressable
-            style={[
-              styles.bubbleCard,
-              {
-                backgroundColor: colorScheme === "dark" ? "#2c2c2e" : "#fff",
-                borderColor: borderColor,
-              },
-            ]}
+            style={[styles.bubbleCard, styles.bubbleCardSurface]}
             onPress={(e) => e.stopPropagation()}
           >
             <ThemedText type="subtitle" style={styles.bubbleTitle}>
               이미 내 리스트에 있는 곡이에요
             </ThemedText>
             {duplicateExisting ? (
-              <ThemedText
-                style={[styles.bubbleSummary, { color: subColor }]}
-                numberOfLines={3}
-              >
+              <ThemedText style={styles.bubbleSummary} numberOfLines={3}>
                 {formatDuplicateLine(duplicateExisting)}
               </ThemedText>
             ) : null}
@@ -614,15 +567,12 @@ export default function PopularChartScreen() {
                 style={({ pressed }) => [
                   styles.bubbleBtn,
                   styles.bubbleBtnPrimary,
-                  {
-                    backgroundColor: tint,
-                    opacity: pressed ? 0.88 : 1,
-                  },
+                  { opacity: pressed ? 0.88 : 1 },
                 ]}
                 accessibilityRole="button"
                 accessibilityLabel="내 곡으로 이동"
               >
-                <ThemedText style={{ fontWeight: "700", color: "#fff" }}>
+                <ThemedText style={styles.bubbleBtnPrimaryLabel}>
                   내 곡으로 이동
                 </ThemedText>
               </Pressable>
@@ -631,7 +581,7 @@ export default function PopularChartScreen() {
                 style={({ pressed }) => [
                   styles.bubbleBtn,
                   styles.bubbleBtnGhost,
-                  { borderColor: borderColor, opacity: pressed ? 0.75 : 1 },
+                  { opacity: pressed ? 0.75 : 1 },
                 ]}
                 accessibilityRole="button"
                 accessibilityLabel="닫기"
@@ -651,23 +601,23 @@ export default function PopularChartScreen() {
             {
               opacity: toastOpacity,
               bottom: Math.max(insets.bottom, 12) + 56,
-              backgroundColor: colorScheme === "dark" ? "#3a3a3c" : "#323232",
             },
           ]}
         >
           <ThemedText style={styles.toastText}>리스트에 추가됐어요</ThemedText>
         </Animated.View>
       ) : null}
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+    backgroundColor: DesignColors.bg,
   },
   header: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 12,
     gap: 10,
   },
@@ -676,10 +626,28 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   providerChip: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 12,
+    paddingVertical: 7,
+    paddingHorizontal: 22,
+    borderRadius: 20,
+  },
+  providerChipInactive: {
+    backgroundColor: DesignColors.bgCard,
     borderWidth: 1,
+    borderColor: DesignColors.bgBorder,
+  },
+  providerChipActive: {
+    backgroundColor: DesignColors.accent,
+    borderWidth: 0,
+  },
+  providerChipLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  providerChipLabelInactive: {
+    color: DesignColors.textSecondary,
+  },
+  providerChipLabelActive: {
+    color: DesignColors.textOnAccent,
   },
   categoryScroller: {
     position: "relative",
@@ -691,10 +659,29 @@ const styles = StyleSheet.create({
     paddingRight: 4,
   },
   categoryChip: {
-    paddingVertical: 8,
+    paddingVertical: 7,
     paddingHorizontal: 14,
-    borderRadius: 10,
+    borderRadius: 16,
     borderWidth: 1,
+  },
+  categoryChipInactive: {
+    backgroundColor: DesignColors.bgCard,
+    borderColor: DesignColors.bgBorder,
+  },
+  categoryChipActive: {
+    backgroundColor: DesignColors.filterChipActiveBg,
+    borderColor: DesignColors.accent,
+  },
+  categoryChipLabel: {
+    fontSize: 14,
+  },
+  categoryChipLabelInactive: {
+    color: DesignColors.textSecondary,
+    fontWeight: "500",
+  },
+  categoryChipLabelActive: {
+    color: DesignColors.accent,
+    fontWeight: "500",
   },
   categoryFade: {
     position: "absolute",
@@ -709,19 +696,21 @@ const styles = StyleSheet.create({
   categoryFadeRight: {
     right: 0,
   },
-  sub: {
-    fontSize: 13,
+  periodText: {
+    fontSize: 11,
+    color: DesignColors.textMuted,
+    lineHeight: 16,
   },
   pad: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
   },
   error: {
-    color: "#c62828",
+    color: DesignColors.danger,
     fontSize: 14,
   },
   kyPlaceholder: {
     fontSize: 15,
-    opacity: 0.75,
+    color: DesignColors.textMuted,
   },
   centered: {
     flex: 1,
@@ -730,34 +719,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   listContent: {
-    paddingHorizontal: 16,
     paddingBottom: 24,
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+    borderBottomWidth: 1,
+    borderBottomColor: DesignColors.listDivider,
+    gap: 12,
   },
   rankCol: {
-    width: 32,
+    width: 28,
     alignItems: "center",
     justifyContent: "center",
   },
   rankText: {
-    fontSize: 15,
-    fontWeight: "700",
     fontVariant: ["tabular-nums"],
   },
   thumb: {
-    width: 48,
-    height: 48,
-    borderRadius: 6,
-    backgroundColor: "#2c2c2e20",
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: DesignColors.bgCard,
   },
   thumbPlaceholder: {
-    backgroundColor: "#c6c6c833",
+    backgroundColor: DesignColors.bgCard,
+    borderWidth: 1,
+    borderColor: DesignColors.bgBorder,
+    alignItems: "center",
+    justifyContent: "center",
   },
   rowText: {
     flex: 1,
@@ -765,15 +757,20 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   chartTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    lineHeight: 22,
+    fontSize: 14,
+    fontWeight: "500",
+    lineHeight: 20,
   },
   artist: {
-    fontSize: 14,
+    fontSize: 12,
+    color: DesignColors.textSecondary,
+    lineHeight: 16,
   },
-  inListCheckWrap: {
-    marginLeft: 2,
+  inListBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: DesignColors.inListBadgeBg,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -788,7 +785,6 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 340,
     borderRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 18,
     paddingTop: 20,
     paddingBottom: 16,
@@ -799,6 +795,11 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 10,
   },
+  bubbleCardSurface: {
+    backgroundColor: DesignColors.bgCard,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: DesignColors.bgBorder,
+  },
   bubbleTitle: {
     marginBottom: 8,
   },
@@ -806,11 +807,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     marginBottom: 12,
+    color: DesignColors.textPrimary,
   },
   bubbleSummary: {
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 18,
+    color: DesignColors.textSecondary,
   },
   bubbleActions: {
     flexDirection: "row",
@@ -826,14 +829,22 @@ const styles = StyleSheet.create({
   },
   bubbleBtnGhost: {
     borderWidth: 1,
+    borderColor: DesignColors.bgBorder,
   },
-  bubbleBtnPrimary: {},
+  bubbleBtnPrimary: {
+    backgroundColor: DesignColors.accent,
+  },
+  bubbleBtnPrimaryLabel: {
+    fontWeight: "700",
+    color: DesignColors.textOnAccent,
+  },
   toast: {
     position: "absolute",
     alignSelf: "center",
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 24,
+    backgroundColor: DesignColors.toastBg,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
@@ -841,7 +852,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   toastText: {
-    color: "#fff",
+    color: DesignColors.toastText,
     fontSize: 14,
     fontWeight: "600",
   },
