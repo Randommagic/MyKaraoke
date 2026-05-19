@@ -1,5 +1,7 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -8,11 +10,14 @@ import {
   FlatList,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { DesignColors } from "@/components/design/colors";
+import { MarqueeText } from "@/components/design/MarqueeText";
 import { ScreenTitle } from "@/components/design/ScreenTitle";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -22,21 +27,130 @@ import { logDebug } from "@/lib/debug-log-buffer";
 import { sanitizeKaraokeDigits } from "@/lib/song-form-helpers";
 import {
   buildDefaultTjTopAndHotQuery,
-  ensureTjChartLoadedOnce,
+  ensureTjChartLoaded,
   formatTjChartPeriodSubtitle,
   getTjChartSessionCache,
   songFromTjChartItem,
+  TJ_CHART_CATEGORY_OPTIONS,
+  type TjChartStrType,
   type TjTopChartSongItem,
 } from "@/lib/tjmedia-chart";
 import { loadSongs, saveSongs, type Song } from "@/lib/songs-storage";
 
 type ChartProvider = "tj" | "ky";
+type ChartCategoryId = "all" | TjChartStrType;
+
+const CATEGORY_SCROLL_EDGE_THRESHOLD = 8;
+const CATEGORY_FADE_WIDTH = 28;
+
+function ChartCategoryScroller({
+  categoryId,
+  onSelect,
+  tint,
+  textColor,
+  borderColor,
+  colorScheme,
+  screenBg,
+}: {
+  categoryId: ChartCategoryId;
+  onSelect: (id: ChartCategoryId) => void;
+  tint: string;
+  textColor: string;
+  borderColor: string;
+  colorScheme: "light" | "dark";
+  screenBg: string;
+}) {
+  const [scrollX, setScrollX] = useState(0);
+  const [viewportWidth, setViewportWidth] = useState(0);
+  const [contentWidth, setContentWidth] = useState(0);
+
+  const canScroll =
+    contentWidth > viewportWidth + CATEGORY_SCROLL_EDGE_THRESHOLD;
+  const showLeftFade = canScroll && scrollX > CATEGORY_SCROLL_EDGE_THRESHOLD;
+  const showRightFade =
+    canScroll &&
+    scrollX + viewportWidth <
+      contentWidth - CATEGORY_SCROLL_EDGE_THRESHOLD;
+
+  const chipBgUnselected =
+    colorScheme === "dark" ? "#2c2c2e" : DesignColors.bgCard;
+
+  return (
+    <View style={styles.categoryScroller}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={(e) => setScrollX(e.nativeEvent.contentOffset.x)}
+        onLayout={(e) => setViewportWidth(e.nativeEvent.layout.width)}
+        onContentSizeChange={(w) => setContentWidth(w)}
+        contentContainerStyle={styles.categoryScrollContent}
+      >
+        {TJ_CHART_CATEGORY_OPTIONS.map((opt) => {
+          const selected = categoryId === opt.id;
+          return (
+            <Pressable
+              key={String(opt.id)}
+              onPress={() => onSelect(opt.id)}
+              style={({ pressed }) => [
+                styles.categoryChip,
+                {
+                  borderColor: selected ? tint : borderColor,
+                  backgroundColor: selected ? `${tint}22` : chipBgUnselected,
+                  opacity: pressed ? 0.85 : 1,
+                },
+              ]}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              accessibilityLabel={`${opt.label} 차트`}
+            >
+              <ThemedText
+                style={{
+                  fontSize: 14,
+                  fontWeight: selected ? "700" : "500",
+                  color: selected ? tint : textColor,
+                }}
+              >
+                {opt.label}
+              </ThemedText>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+      {showLeftFade ? (
+        <LinearGradient
+          colors={[screenBg, "transparent"]}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          style={[styles.categoryFade, styles.categoryFadeLeft]}
+          pointerEvents="none"
+        />
+      ) : null}
+      {showRightFade ? (
+        <LinearGradient
+          colors={["transparent", screenBg]}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          style={[styles.categoryFade, styles.categoryFadeRight]}
+          pointerEvents="none"
+        />
+      ) : null}
+    </View>
+  );
+}
+
+function chartCategoryToStrType(
+  categoryId: ChartCategoryId,
+): TjChartStrType | undefined {
+  return categoryId === "all" ? undefined : categoryId;
+}
 
 function ChartRow({
   item,
   borderColor,
   subColor,
   rankColor,
+  titleColor,
   isInList,
   onPress,
 }: {
@@ -44,6 +158,7 @@ function ChartRow({
   borderColor: string;
   subColor: string;
   rankColor: string;
+  titleColor: string;
   isInList: boolean;
   onPress: () => void;
 }) {
@@ -78,9 +193,11 @@ function ChartRow({
         <View style={[styles.thumb, styles.thumbPlaceholder]} />
       )}
       <View style={styles.rowText}>
-        <ThemedText type="defaultSemiBold" numberOfLines={2}>
-          {item.indexTitle}
-        </ThemedText>
+        <MarqueeText
+          text={item.indexTitle}
+          color={titleColor}
+          style={styles.chartTitle}
+        />
         <ThemedText
           style={[styles.artist, { color: subColor }]}
           numberOfLines={1}
@@ -89,12 +206,16 @@ function ChartRow({
         </ThemedText>
       </View>
       {isInList ? (
-        <ThemedText
-          style={styles.inListCheck}
+        <View
+          style={styles.inListCheckWrap}
           accessibilityLabel="내 리스트에 추가됨"
         >
-          ✓
-        </ThemedText>
+          <Ionicons
+            name="checkmark-circle"
+            size={22}
+            color={DesignColors.accent}
+          />
+        </View>
       ) : null}
     </Pressable>
   );
@@ -105,6 +226,7 @@ export default function PopularChartScreen() {
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? "light";
   const tint = useThemeColor({}, "tint");
+  const screenBg = useThemeColor({}, "background");
   const textColor = useThemeColor({}, "text");
   const borderColor = useThemeColor(
     { light: "#e5e5ea", dark: "#3a3a3c" },
@@ -113,14 +235,16 @@ export default function PopularChartScreen() {
   const subColor = useThemeColor({ light: "#636366", dark: "#98989d" }, "icon");
 
   const [provider, setProvider] = useState<ChartProvider>("tj");
+  const [chartCategory, setChartCategory] = useState<ChartCategoryId>("all");
+  const chartStrType = chartCategoryToStrType(chartCategory);
   const [loading, setLoading] = useState(
-    () => getTjChartSessionCache() === null,
+    () => getTjChartSessionCache(chartStrType) === null,
   );
   const [items, setItems] = useState<TjTopChartSongItem[]>(
-    () => getTjChartSessionCache()?.items ?? [],
+    () => getTjChartSessionCache(chartStrType)?.items ?? [],
   );
   const [error, setError] = useState<string | null>(
-    () => getTjChartSessionCache()?.error ?? null,
+    () => getTjChartSessionCache(chartStrType)?.error ?? null,
   );
   const [pendingAdd, setPendingAdd] = useState<TjTopChartSongItem | null>(null);
   const [duplicateExisting, setDuplicateExisting] = useState<Song | null>(null);
@@ -128,8 +252,8 @@ export default function PopularChartScreen() {
   const [toastVisible, setToastVisible] = useState(false);
   const [mySongs, setMySongs] = useState<Song[]>([]);
   const [tjPeriod, setTjPeriod] = useState(() => {
-    const cached = getTjChartSessionCache();
-    const q = buildDefaultTjTopAndHotQuery();
+    const cached = getTjChartSessionCache(chartStrType);
+    const q = buildDefaultTjTopAndHotQuery(chartStrType);
     return {
       start: cached?.searchStartDate ?? q.searchStartDate,
       end: cached?.searchEndDate ?? q.searchEndDate,
@@ -138,8 +262,9 @@ export default function PopularChartScreen() {
   const toastOpacity = useRef(new Animated.Value(0)).current;
 
   const tjPeriodSubtitle = useMemo(
-    () => formatTjChartPeriodSubtitle(tjPeriod.start, tjPeriod.end),
-    [tjPeriod.end, tjPeriod.start],
+    () =>
+      formatTjChartPeriodSubtitle(tjPeriod.start, tjPeriod.end, chartStrType),
+    [chartStrType, tjPeriod.end, tjPeriod.start],
   );
 
   const addedTjNumbers = useMemo(() => {
@@ -188,7 +313,8 @@ export default function PopularChartScreen() {
       return;
     }
 
-    const cached = getTjChartSessionCache();
+    const strType = chartStrType;
+    const cached = getTjChartSessionCache(strType);
     if (cached !== null) {
       setItems(cached.items);
       setError(cached.error);
@@ -205,9 +331,9 @@ export default function PopularChartScreen() {
     setItems([]);
 
     let cancelled = false;
-    void ensureTjChartLoadedOnce().then(() => {
+    void ensureTjChartLoaded(strType).then(() => {
       if (cancelled) return;
-      const next = getTjChartSessionCache();
+      const next = getTjChartSessionCache(strType);
       if (next) {
         setItems(next.items);
         setError(next.error);
@@ -222,7 +348,7 @@ export default function PopularChartScreen() {
     return () => {
       cancelled = true;
     };
-  }, [provider]);
+  }, [provider, chartStrType]);
 
   const chipMuted = useThemeColor(
     { light: "#8e8e93", dark: "#8e8e93" },
@@ -313,6 +439,17 @@ export default function PopularChartScreen() {
             );
           })}
         </View>
+        {provider === "tj" ? (
+          <ChartCategoryScroller
+            categoryId={chartCategory}
+            onSelect={setChartCategory}
+            tint={tint}
+            textColor={textColor}
+            borderColor={borderColor}
+            colorScheme={colorScheme}
+            screenBg={screenBg}
+          />
+        ) : null}
         <ThemedText style={[styles.sub, { color: chipMuted }]}>
           {provider === "tj" ? tjPeriodSubtitle : "KY — 준비중"}
         </ThemedText>
@@ -335,7 +472,7 @@ export default function PopularChartScreen() {
       ) : (
         <FlatList
           data={items}
-          keyExtractor={(it) => `${it.pro}-${it.rank}`}
+          keyExtractor={(it) => `${chartCategory}-${it.pro}-${it.rank}`}
           contentContainerStyle={styles.listContent}
           renderItem={({ item }) => {
             const tjNum = sanitizeKaraokeDigits(String(item.pro));
@@ -346,6 +483,7 @@ export default function PopularChartScreen() {
                 borderColor={borderColor}
                 subColor={subColor}
                 rankColor={textColor}
+                titleColor={textColor}
                 isInList={isInList}
                 onPress={() => setPendingAdd(item)}
               />
@@ -543,6 +681,34 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
   },
+  categoryScroller: {
+    position: "relative",
+    marginTop: 2,
+  },
+  categoryScrollContent: {
+    flexDirection: "row",
+    gap: 8,
+    paddingRight: 4,
+  },
+  categoryChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  categoryFade: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: CATEGORY_FADE_WIDTH,
+    zIndex: 1,
+  },
+  categoryFadeLeft: {
+    left: 0,
+  },
+  categoryFadeRight: {
+    right: 0,
+  },
   sub: {
     fontSize: 13,
   },
@@ -598,15 +764,18 @@ const styles = StyleSheet.create({
     minWidth: 0,
     gap: 2,
   },
+  chartTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    lineHeight: 22,
+  },
   artist: {
     fontSize: 14,
   },
-  inListCheck: {
-    fontSize: 20,
-    lineHeight: 22,
-    fontWeight: "700",
-    color: "#34c759",
+  inListCheckWrap: {
     marginLeft: 2,
+    justifyContent: "center",
+    alignItems: "center",
   },
   bubbleBackdrop: {
     flex: 1,

@@ -3,6 +3,23 @@ import { createSongId, type Song } from "@/lib/songs-storage";
 
 const TOP_AND_HOT_ENDPOINT = "https://www.tjmedia.com/legacy/api/topAndHot100";
 
+/** `strType` 쿼리 — 1 가요, 2 POP, 3 JPOP, 4 발라드, 5 댄스, 6 트로트 */
+export type TjChartStrType = 1 | 2 | 3 | 4 | 5 | 6;
+
+export const TJ_CHART_CATEGORY_OPTIONS: readonly {
+  id: "all" | TjChartStrType;
+  label: string;
+  strType?: TjChartStrType;
+}[] = [
+  { id: "all", label: "전체" },
+  { id: 1, label: "가요", strType: 1 },
+  { id: 2, label: "POP", strType: 2 },
+  { id: 3, label: "JPOP", strType: 3 },
+  { id: 4, label: "발라드", strType: 4 },
+  { id: 5, label: "댄스", strType: 5 },
+  { id: 6, label: "트로트", strType: 6 },
+];
+
 /** `resultData.items` 원소 형태 */
 export interface TjTopChartSongItem {
   rank: string;
@@ -32,6 +49,8 @@ export type TopAndHot100Query = {
   chartType: string;
   searchStartDate: string;
   searchEndDate: string;
+  /** 없으면 전체 TOP100 */
+  strType?: TjChartStrType;
 };
 
 function formatLocalYmd(d: Date): string {
@@ -42,15 +61,21 @@ function formatLocalYmd(d: Date): string {
 }
 
 /** endDate = 오늘(로컬), startDate = 그로부터 2주 전 */
-export function buildDefaultTjTopAndHotQuery(): TopAndHot100Query {
+export function buildDefaultTjTopAndHotQuery(
+  strType?: TjChartStrType,
+): TopAndHot100Query {
   const end = new Date();
   const start = new Date(end);
   start.setDate(start.getDate() - 14);
-  return {
+  const base: TopAndHot100Query = {
     chartType: "TOP",
     searchStartDate: formatLocalYmd(start),
     searchEndDate: formatLocalYmd(end),
   };
+  if (strType != null) {
+    base.strType = strType;
+  }
+  return base;
 }
 
 export type TjChartSessionCache = {
@@ -58,7 +83,20 @@ export type TjChartSessionCache = {
   error: string | null;
   searchStartDate: string;
   searchEndDate: string;
+  strType?: TjChartStrType;
 };
+
+export function getTjChartCategoryLabel(strType?: TjChartStrType): string {
+  if (strType == null) return "전체";
+  return (
+    TJ_CHART_CATEGORY_OPTIONS.find((o) => o.strType === strType)?.label ??
+    "전체"
+  );
+}
+
+function tjChartCacheKey(strType?: TjChartStrType): string {
+  return strType == null ? "all" : String(strType);
+}
 
 /** `yyyy-mm-dd` → `yyyy.mm.dd` (표시용) */
 export function formatTjChartYmdDisplay(ymd: string): string {
@@ -70,49 +108,69 @@ export function formatTjChartYmdDisplay(ymd: string): string {
 export function formatTjChartPeriodSubtitle(
   searchStartDate: string,
   searchEndDate: string,
+  strType?: TjChartStrType,
 ): string {
-  return `${formatTjChartYmdDisplay(searchStartDate)} ~ ${formatTjChartYmdDisplay(searchEndDate)} 사이의 인기차트 100위`;
+  const period = `${formatTjChartYmdDisplay(searchStartDate)} ~ ${formatTjChartYmdDisplay(searchEndDate)}`;
+  const category = getTjChartCategoryLabel(strType);
+  if (strType == null) {
+    return `${period} 사이의 인기차트 100위`;
+  }
+  return `${period} · ${category} 인기차트 100위`;
 }
 
-let tjSessionCache: TjChartSessionCache | null = null;
-let tjSessionLoad: Promise<void> | null = null;
+const tjSessionCacheByKey = new Map<string, TjChartSessionCache>();
+const tjSessionLoadByKey = new Map<string, Promise<void>>();
 
-/** 앱 프로세스 동안 TJ 인기차트 네트워크는 최대 1회 */
-export function getTjChartSessionCache(): TjChartSessionCache | null {
-  return tjSessionCache;
+export function getTjChartSessionCache(
+  strType?: TjChartStrType,
+): TjChartSessionCache | null {
+  return tjSessionCacheByKey.get(tjChartCacheKey(strType)) ?? null;
 }
 
-export function ensureTjChartLoadedOnce(): Promise<void> {
-  if (tjSessionCache !== null) return Promise.resolve();
-  if (tjSessionLoad) return tjSessionLoad;
-  tjSessionLoad = (async () => {
-    const query = buildDefaultTjTopAndHotQuery();
+export function ensureTjChartLoaded(strType?: TjChartStrType): Promise<void> {
+  const key = tjChartCacheKey(strType);
+  if (tjSessionCacheByKey.has(key)) return Promise.resolve();
+
+  const existing = tjSessionLoadByKey.get(key);
+  if (existing) return existing;
+
+  const load = (async () => {
+    const query = buildDefaultTjTopAndHotQuery(strType);
     try {
       const data = await fetchTopAndHot100(query);
-      tjSessionCache = {
+      tjSessionCacheByKey.set(key, {
         items: topChartItemsFromResponse(data),
         error: null,
         searchStartDate: query.searchStartDate,
         searchEndDate: query.searchEndDate,
-      };
+        strType,
+      });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      tjSessionCache = {
+      tjSessionCacheByKey.set(key, {
         items: [],
         error: msg,
         searchStartDate: query.searchStartDate,
         searchEndDate: query.searchEndDate,
-      };
+        strType,
+      });
     } finally {
-      tjSessionLoad = null;
+      tjSessionLoadByKey.delete(key);
     }
   })();
-  return tjSessionLoad;
+
+  tjSessionLoadByKey.set(key, load);
+  return load;
 }
 
-/** 메인 화면 등에서 차트 탭 전에 백그라운드로 1회 로드 시작 */
+/** @deprecated `ensureTjChartLoaded()` 사용 */
+export function ensureTjChartLoadedOnce(): Promise<void> {
+  return ensureTjChartLoaded();
+}
+
+/** 메인 화면 등에서 차트 탭 전에 백그라운드로 전체 차트 1회 로드 */
 export function prefetchTjTopChartInBackground(): void {
-  void ensureTjChartLoadedOnce();
+  void ensureTjChartLoaded();
 }
 
 function buildTopAndHotUrl(query: TopAndHot100Query): string {
@@ -121,6 +179,9 @@ function buildTopAndHotUrl(query: TopAndHot100Query): string {
     searchStartDate: query.searchStartDate,
     searchEndDate: query.searchEndDate,
   });
+  if (query.strType != null) {
+    q.set("strType", String(query.strType));
+  }
   return `${TOP_AND_HOT_ENDPOINT}?${q.toString()}`;
 }
 

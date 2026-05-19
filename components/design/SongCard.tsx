@@ -7,6 +7,7 @@ import {
   KeyBadge,
   ReadyBadge,
 } from "@/components/design/Badges";
+import { MarqueeText } from "@/components/design/MarqueeText";
 import { DesignColors } from "@/components/design/colors";
 import type { SongCardModel } from "@/components/design/types";
 
@@ -55,9 +56,13 @@ export function SongCard({
 
       <View style={styles.body}>
         <View style={styles.topRow}>
-          <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
-            {model.title}
-          </Text>
+          <View style={styles.titleSlot}>
+            <MarqueeText
+              text={model.title}
+              color={DesignColors.textPrimary}
+              style={styles.title}
+            />
+          </View>
           <DateBadge lastSungAt={model.lastSungAt} />
         </View>
 
@@ -107,11 +112,13 @@ const styles = StyleSheet.create({
     minHeight: 18,
     marginBottom: 6,
   },
-  title: {
+  titleSlot: {
     flex: 1,
+    minWidth: 0,
+  },
+  title: {
     fontSize: 14,
     fontWeight: "500",
-    color: DesignColors.textPrimary,
     lineHeight: 18,
   },
   badgeRow: {

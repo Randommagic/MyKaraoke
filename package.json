@@ -6,6 +6,7 @@
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
+    "android-release": "expo run:android --variant release",
     "web": "expo start --web",
     "lint": "expo lint",
     "ios": "expo run:ios"

@@ -389,6 +389,8 @@ export default function HomeScreen() {
   const [draftTranspose, setDraftTranspose] = useState(0);
   const [readinessFilter, setReadinessFilter] =
     useState<ReadinessFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [youtubeImportVisible, setYoutubeImportVisible] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
@@ -619,9 +621,20 @@ export default function HomeScreen() {
   );
 
   const filteredSongs = useMemo(() => {
-    if (readinessFilter === "all") return songs;
-    return songs.filter((s) => s.readiness === readinessFilter);
-  }, [readinessFilter, songs]);
+    let result = songs;
+    if (readinessFilter !== "all") {
+      result = result.filter((s) => s.readiness === readinessFilter);
+    }
+    if (searchQuery.trim().length > 0) {
+      const q = searchQuery.trim().toLowerCase();
+      result = result.filter(
+        (s) =>
+          s.title.toLowerCase().includes(q) ||
+          s.artist.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [readinessFilter, songs, searchQuery]);
 
   const readinessFilterCounts = useMemo(() => {
     const by: Record<SongReadiness, number> = {
@@ -647,7 +660,36 @@ export default function HomeScreen() {
   return (
     <ThemedView style={[styles.screen, { paddingTop: insets.top }]}>
       <View style={styles.filterHeader}>
-        <ScreenTitle style={styles.homeTitle}>내 노래 목록</ScreenTitle>
+        <View style={styles.titleRow}>
+          <ScreenTitle style={styles.homeTitle}>내 노래 목록</ScreenTitle>
+          <View style={styles.searchContainer}>
+            {isSearchExpanded ? (
+              <View style={[styles.searchInputWrapper, { backgroundColor: colorScheme === "dark" ? "#2c2c2e" : "#f2f2f7" }]}>
+                <TextInput
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="제목, 가수 검색"
+                  placeholderTextColor={iconMuted}
+                  style={[styles.searchInput, { color: textColor }]}
+                  returnKeyType="search"
+                  autoFocus
+                />
+                {searchQuery.length > 0 && (
+                  <Pressable onPress={() => setSearchQuery("")} style={styles.searchClearBtn} accessibilityLabel="검색어 지우기">
+                    <Ionicons name="close-circle" size={16} color={iconMuted} />
+                  </Pressable>
+                )}
+                <Pressable onPress={() => { setIsSearchExpanded(false); setSearchQuery(""); }} style={styles.searchCloseBtn} accessibilityLabel="검색 닫기">
+                  <Ionicons name="close" size={20} color={textColor} />
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable onPress={() => setIsSearchExpanded(true)} style={styles.searchIconBtn} accessibilityLabel="검색 열기">
+                <Ionicons name="search" size={24} color={textColor} />
+              </Pressable>
+            )}
+          </View>
+        </View>
         <ReadinessFilterScroller
           readinessFilter={readinessFilter}
           onSelectFilter={setReadinessFilter}
@@ -656,7 +698,7 @@ export default function HomeScreen() {
       </View>
 
       <DraggableFlatList
-        data={readinessFilter === "all" ? songs : filteredSongs}
+        data={readinessFilter === "all" && searchQuery.length === 0 ? songs : filteredSongs}
         keyExtractor={(item) => item.id}
         containerStyle={styles.listFlex}
         style={styles.listFlex}
@@ -667,13 +709,13 @@ export default function HomeScreen() {
           <ThemedText
             style={{ color: iconMuted, textAlign: "center", marginTop: 24 }}
           >
-            {readinessFilter === "all"
+            {readinessFilter === "all" && searchQuery.length === 0
               ? "등록된 곡이 없습니다. 우하단 + 버튼에서 새 곡을 추가해 보세요."
-              : "이 준비도에 해당하는 곡이 없습니다. 필터를 바꿔 보세요."}
+              : "조건에 맞는 곡이 없습니다."}
           </ThemedText>
         }
         onDragEnd={({ data }) =>
-          readinessFilter === "all" ? void handleDragEnd(data) : undefined
+          (readinessFilter === "all" && searchQuery.length === 0) ? void handleDragEnd(data) : undefined
         }
         renderItem={({ item, drag, isActive }: RenderItemParams<Song>) => (
           <SwipeableSongRow
@@ -690,7 +732,7 @@ export default function HomeScreen() {
             drag={drag}
             isActive={isActive}
             swipeEnabled
-            dragReorderEnabled={readinessFilter === "all"}
+            dragReorderEnabled={readinessFilter === "all" && searchQuery.length === 0}
             onDisabledDragAttempt={showReorderDisabledToast}
           />
         )}
@@ -1058,8 +1100,42 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     marginBottom: 4,
   },
-  homeTitle: {
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 16,
+  },
+  homeTitle: {
+    marginBottom: 0,
+  },
+  searchContainer: {
+    flex: 1,
+    alignItems: "flex-end",
+    marginLeft: 12,
+  },
+  searchIconBtn: {
+    padding: 4,
+  },
+  searchInputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    height: 36,
+    width: "100%",
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    paddingVertical: 0,
+  },
+  searchClearBtn: {
+    padding: 4,
+  },
+  searchCloseBtn: {
+    padding: 4,
+    marginLeft: 4,
   },
   listFlex: {
     flex: 1,
