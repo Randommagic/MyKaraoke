@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  KeyboardAvoidingView,
   Modal,
   Pressable,
   StyleSheet,
@@ -14,6 +13,10 @@ import {
 } from "react-native";
 
 import { DesignColors } from "@/components/design/colors";
+import {
+  KeyboardAwareField,
+  KeyboardAwareScrollView,
+} from "@/components/design/keyboard-aware-scroll";
 import { ThemedText } from "@/components/themed-text";
 import { createSongFromYoutubeImport, type Song } from "@/lib/songs-storage";
 import {
@@ -143,9 +146,10 @@ export function YoutubeImportModal({
       transparent
       onRequestClose={onClose}
     >
-      <KeyboardAvoidingView style={styles.modalRoot} behavior="padding">
+      <View style={styles.modalRoot}>
         <Pressable style={styles.modalBackdrop} onPress={onClose} />
         <View style={styles.modalCard}>
+          <KeyboardAwareScrollView fill={false} extraBottomPadding={16}>
           <ThemedText type="subtitle" style={styles.modalTitle}>
             YouTube에서 가져오기
           </ThemedText>
@@ -154,16 +158,18 @@ export function YoutubeImportModal({
           </ThemedText>
 
           <View style={styles.urlInputRow}>
-            <TextInput
-              value={url}
-              onChangeText={setUrl}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              placeholder="Youtube 링크를 입력하세요"
-              placeholderTextColor={DesignColors.textMuted}
-              style={[styles.urlInput, styles.urlInputField]}
-            />
+            <KeyboardAwareField style={styles.urlInputFlex}>
+              <TextInput
+                value={url}
+                onChangeText={setUrl}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+                placeholder="Youtube 링크를 입력하세요"
+                placeholderTextColor={DesignColors.textMuted}
+                style={[styles.urlInput, styles.urlInputField]}
+              />
+            </KeyboardAwareField>
             <Pressable
               onPress={() => void onPasteFromClipboard()}
               style={({ pressed }) => [
@@ -281,6 +287,7 @@ export function YoutubeImportModal({
               />
             </>
           ) : null}
+          </KeyboardAwareScrollView>
 
           <View style={styles.footer}>
             <Pressable
@@ -309,7 +316,7 @@ export function YoutubeImportModal({
             </Pressable>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
@@ -357,6 +364,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 15,
+  },
+  urlInputFlex: {
+    flex: 1,
+    minWidth: 0,
   },
   urlInputField: {
     flex: 1,

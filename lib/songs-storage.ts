@@ -69,6 +69,13 @@ export type Song = {
 
 export const MAX_SUNG_DATES = 2;
 
+/** 곡 메모 최대 글자 수 */
+export const MAX_SONG_MEMO_LENGTH = 200;
+
+export function clampSongMemo(text: string): string {
+  return text.slice(0, MAX_SONG_MEMO_LENGTH);
+}
+
 export function createSongId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -255,7 +262,7 @@ export function parseSongsFromUnknown(parsed: unknown): Song[] {
       kyNumber: normalizeKaraokeNumber(
         readString(row, "kyNumber") || readString(row, "kumyoungNumber"),
       ),
-      memo: readString(row, "memo"),
+      memo: clampSongMemo(readString(row, "memo")),
       youtubeUrl: normalizeYoutubeUrlForStorage(
         readString(row, "youtubeUrl") || readString(row, "youtubeLink"),
       ),

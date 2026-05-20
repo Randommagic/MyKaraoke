@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   Animated,
   Dimensions,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -30,6 +29,10 @@ import {
   type ConfirmFn,
 } from "@/components/design/confirm-dialog-context";
 import { DesignColors } from "@/components/design/colors";
+import {
+  KeyboardAwareField,
+  KeyboardAwareScrollView,
+} from "@/components/design/keyboard-aware-scroll";
 import { ScreenTitle } from "@/components/design/ScreenTitle";
 import {
   SwipeActionPanel,
@@ -51,8 +54,10 @@ import {
   sanitizeKaraokeDigits,
 } from "@/lib/song-form-helpers";
 import {
+  clampSongMemo,
   createSongId,
   loadSongs,
+  MAX_SONG_MEMO_LENGTH,
   saveSongs,
   toggleSungTodayInDates,
   SONG_READINESS_OPTIONS,
@@ -476,7 +481,7 @@ export default function HomeScreen() {
     const artist = draftArtist.trim();
     const tjNumber = sanitizeKaraokeDigits(draftTjNumber);
     const kyNumber = sanitizeKaraokeDigits(draftKyNumber);
-    const memo = draftMemo.trim();
+    const memo = clampSongMemo(draftMemo.trim());
     const youtubeUrl = normalizeYoutubeUrlForStorage(draftYoutubeUrl);
     try {
       const song: Song = {
@@ -799,74 +804,105 @@ export default function HomeScreen() {
         transparent
         onRequestClose={closeModal}
       >
-        <KeyboardAvoidingView style={styles.modalRoot}>
+        <View style={styles.modalRoot}>
           <Pressable style={styles.modalBackdrop} onPress={closeModal} />
           <View style={styles.modalCard}>
             <ThemedText type="subtitle" style={styles.modalTitle}>
               새 곡 추가
             </ThemedText>
 
-            <ScrollView
+            <KeyboardAwareScrollView
+              fill={false}
               style={{ maxHeight: modalScrollMaxHeight }}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator
+              extraBottomPadding={16}
+              footer={
+                <View style={styles.modalActions}>
+                  <View style={{ flex: 1 }} />
+                  <Pressable
+                    onPress={closeModal}
+                    style={({ pressed }) => [
+                      styles.textBtn,
+                      { opacity: pressed ? 0.6 : 1 },
+                    ]}
+                  >
+                    <ThemedText style={styles.modalCancelLabel}>취소</ThemedText>
+                  </Pressable>
+                  <Pressable
+                    onPress={handleSaveModal}
+                    style={({ pressed }) => [
+                      styles.primaryBtn,
+                      { opacity: pressed ? 0.85 : 1 },
+                    ]}
+                  >
+                    <ThemedText style={styles.primaryBtnLabel}>저장</ThemedText>
+                  </Pressable>
+                </View>
+              }
             >
               <ThemedText style={styles.fieldLabel}>노래 제목</ThemedText>
-              <TextInput
-                value={draftTitle}
-                onChangeText={setDraftTitle}
-                placeholder="제목"
-                placeholderTextColor={DesignColors.textMuted}
-                style={[styles.modalInput, inputSurfaceStyle]}
-                autoFocus
-              />
+              <KeyboardAwareField>
+                <TextInput
+                  value={draftTitle}
+                  onChangeText={setDraftTitle}
+                  placeholder="제목"
+                  placeholderTextColor={DesignColors.textMuted}
+                  style={[styles.modalInput, inputSurfaceStyle]}
+                  autoFocus
+                />
+              </KeyboardAwareField>
 
               <ThemedText style={styles.fieldLabel}>가수</ThemedText>
-              <TextInput
-                value={draftArtist}
-                onChangeText={setDraftArtist}
-                placeholder="가수명"
-                placeholderTextColor={DesignColors.textMuted}
-                style={[styles.modalInput, inputSurfaceStyle]}
-              />
+              <KeyboardAwareField>
+                <TextInput
+                  value={draftArtist}
+                  onChangeText={setDraftArtist}
+                  placeholder="가수명"
+                  placeholderTextColor={DesignColors.textMuted}
+                  style={[styles.modalInput, inputSurfaceStyle]}
+                />
+              </KeyboardAwareField>
 
               <ThemedText style={styles.fieldLabel}>곡 번호</ThemedText>
               <View style={styles.modalNumberRow}>
                 <View style={styles.modalNumberCol}>
                   <ThemedText style={styles.modalNumberBrand}>태진</ThemedText>
-                  <TextInput
-                    value={draftTjNumber}
-                    onChangeText={(text) =>
-                      setDraftTjNumber(sanitizeKaraokeDigits(text))
-                    }
-                    placeholder="번호"
-                    placeholderTextColor={DesignColors.textMuted}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    style={[
-                      styles.modalInput,
-                      inputSurfaceStyle,
-                      styles.modalNumberInput,
-                    ]}
-                  />
+                  <KeyboardAwareField>
+                    <TextInput
+                      value={draftTjNumber}
+                      onChangeText={(text) =>
+                        setDraftTjNumber(sanitizeKaraokeDigits(text))
+                      }
+                      placeholder="번호"
+                      placeholderTextColor={DesignColors.textMuted}
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      style={[
+                        styles.modalInput,
+                        inputSurfaceStyle,
+                        styles.modalNumberInput,
+                      ]}
+                    />
+                  </KeyboardAwareField>
                 </View>
                 <View style={styles.modalNumberCol}>
                   <ThemedText style={styles.modalNumberBrand}>금영</ThemedText>
-                  <TextInput
-                    value={draftKyNumber}
-                    onChangeText={(text) =>
-                      setDraftKyNumber(sanitizeKaraokeDigits(text))
-                    }
-                    placeholder="번호"
-                    placeholderTextColor={DesignColors.textMuted}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    style={[
-                      styles.modalInput,
-                      inputSurfaceStyle,
-                      styles.modalNumberInput,
-                    ]}
-                  />
+                  <KeyboardAwareField>
+                    <TextInput
+                      value={draftKyNumber}
+                      onChangeText={(text) =>
+                        setDraftKyNumber(sanitizeKaraokeDigits(text))
+                      }
+                      placeholder="번호"
+                      placeholderTextColor={DesignColors.textMuted}
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      style={[
+                        styles.modalInput,
+                        inputSurfaceStyle,
+                        styles.modalNumberInput,
+                      ]}
+                    />
+                  </KeyboardAwareField>
                 </View>
               </View>
 
@@ -959,54 +995,40 @@ export default function HomeScreen() {
               </View>
 
               <ThemedText style={styles.fieldLabel}>메모</ThemedText>
-              <TextInput
-                value={draftMemo}
-                onChangeText={setDraftMemo}
-                placeholder="간단히 적어두기"
-                placeholderTextColor={DesignColors.textMuted}
-                multiline
-                textAlignVertical="top"
-                style={[
-                  styles.modalInput,
-                  styles.modalMemoInput,
-                  inputSurfaceStyle,
-                ]}
-              />
+              <KeyboardAwareField>
+                <TextInput
+                  value={draftMemo}
+                  onChangeText={setDraftMemo}
+                  maxLength={MAX_SONG_MEMO_LENGTH}
+                  placeholder="간단히 적어두기"
+                  placeholderTextColor={DesignColors.textMuted}
+                  multiline
+                  textAlignVertical="top"
+                  style={[
+                    styles.modalInput,
+                    styles.modalMemoInput,
+                    inputSurfaceStyle,
+                  ]}
+                />
+              </KeyboardAwareField>
+              <ThemedText style={styles.memoCounter}>
+                [{draftMemo.length}/{MAX_SONG_MEMO_LENGTH}]
+              </ThemedText>
 
               <ThemedText style={styles.fieldLabel}>YouTube 링크</ThemedText>
-              <TextInput
-                value={draftYoutubeUrl}
-                onChangeText={setDraftYoutubeUrl}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="url"
-                style={[styles.modalInput, inputSurfaceStyle]}
-              />
-            </ScrollView>
-
-            <View style={styles.modalActions}>
-              <View style={{ flex: 1 }} />
-              <Pressable
-                onPress={closeModal}
-                style={({ pressed }) => [
-                  styles.textBtn,
-                  { opacity: pressed ? 0.6 : 1 },
-                ]}
-              >
-                <ThemedText style={styles.modalCancelLabel}>취소</ThemedText>
-              </Pressable>
-              <Pressable
-                onPress={handleSaveModal}
-                style={({ pressed }) => [
-                  styles.primaryBtn,
-                  { opacity: pressed ? 0.85 : 1 },
-                ]}
-              >
-                <ThemedText style={styles.primaryBtnLabel}>저장</ThemedText>
-              </Pressable>
-            </View>
+              <KeyboardAwareField>
+                <TextInput
+                  value={draftYoutubeUrl}
+                  onChangeText={setDraftYoutubeUrl}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                  style={[styles.modalInput, inputSurfaceStyle]}
+                />
+              </KeyboardAwareField>
+            </KeyboardAwareScrollView>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
 
       <YoutubeImportModal
@@ -1357,6 +1379,13 @@ const styles = StyleSheet.create({
   modalMemoInput: {
     minHeight: 88,
     paddingTop: 12,
+    marginBottom: 4,
+  },
+  memoCounter: {
+    alignSelf: "flex-end",
+    fontSize: 11,
+    color: DesignColors.textFaint,
+    marginBottom: 14,
   },
   segmentRow: {
     flexDirection: "row",
