@@ -33,6 +33,8 @@ type Props = {
   onAdd: (songs: Song[]) => void | Promise<void>;
   /** 중복 판별용 현재 내 곡 목록 */
   existingSongs: Song[];
+  /** YouTube 앱 공유 등으로 미리 채울 URL */
+  initialUrl?: string;
 };
 
 export function YoutubeImportModal({
@@ -40,6 +42,7 @@ export function YoutubeImportModal({
   onClose,
   onAdd,
   existingSongs,
+  initialUrl,
 }: Props) {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
@@ -54,12 +57,12 @@ export function YoutubeImportModal({
 
   useEffect(() => {
     if (!visible) return;
-    setUrl("");
+    setUrl(initialUrl?.trim() ?? "");
     setLoading(false);
     setError(null);
     setItems([]);
     setSelected(new Set());
-  }, [visible]);
+  }, [initialUrl, visible]);
 
   const selectableVideoIds = useCallback(
     (list: YoutubeImportItem[]) =>

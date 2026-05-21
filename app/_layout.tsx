@@ -10,6 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
 import { ConfirmDialogProvider } from '@/components/design/confirm-dialog-context';
+import { YoutubeShareIntentProvider } from '@/components/youtube-share-intent-provider';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { installGlobalConsoleCapture, installUnhandledErrorLogging } from '@/lib/debug-log-buffer';
 import { prefetchTjTopChartInBackground } from '@/lib/tjmedia-chart';
@@ -34,6 +35,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <YoutubeShareIntentProvider>
           <ConfirmDialogProvider>
             <Stack>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -45,6 +47,7 @@ export default function RootLayout() {
             </Stack>
             <StatusBar style="auto" />
           </ConfirmDialogProvider>
+          </YoutubeShareIntentProvider>
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

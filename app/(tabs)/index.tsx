@@ -43,6 +43,7 @@ import { mapStorageSongToCardModel } from "@/components/design/map-song";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { YoutubeImportModal } from "@/components/youtube-import-modal";
+import { usePendingYoutubeShareUrl } from "@/components/youtube-share-intent-provider";
 import { logDebug } from "@/lib/debug-log-buffer";
 import {
   formatTranspose,
@@ -387,6 +388,11 @@ export default function HomeScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [youtubeImportVisible, setYoutubeImportVisible] = useState(false);
+  const [youtubeImportInitialUrl, setYoutubeImportInitialUrl] = useState<
+    string | undefined
+  >();
+  const { pendingUrl: pendingYoutubeShareUrl, consumePendingUrl } =
+    usePendingYoutubeShareUrl();
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
@@ -418,11 +424,26 @@ export default function HomeScreen() {
       try {
         await persist([...imported, ...songs]);
         setYoutubeImportVisible(false);
+        setYoutubeImportInitialUrl(undefined);
       } catch {
         logDebug("[home] YouTube 일괄 추가 저장 실패", "warn");
       }
     },
     [persist, songs],
+  );
+
+  const closeYoutubeImportModal = useCallback(() => {
+    setYoutubeImportVisible(false);
+    setYoutubeImportInitialUrl(undefined);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!pendingYoutubeShareUrl) return;
+      setYoutubeImportInitialUrl(pendingYoutubeShareUrl);
+      setYoutubeImportVisible(true);
+      consumePendingUrl();
+    }, [consumePendingUrl, pendingYoutubeShareUrl]),
   );
 
   useEffect(() => {
@@ -1016,9 +1037,10 @@ export default function HomeScreen() {
 
       <YoutubeImportModal
         visible={youtubeImportVisible}
-        onClose={() => setYoutubeImportVisible(false)}
+        onClose={closeYoutubeImportModal}
         onAdd={handleYoutubeImportAdd}
         existingSongs={songs}
+        initialUrl={youtubeImportInitialUrl}
       />
 
       {toastVisible ? (
