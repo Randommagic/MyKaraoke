@@ -1,6 +1,6 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -24,6 +24,7 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { logDebug } from "@/lib/debug-log-buffer";
 import { sanitizeKaraokeDigits } from "@/lib/song-form-helpers";
+import { isYoutubeImportLinkLocked } from "@/lib/song-youtube";
 import {
   loadSongs,
   saveSongs,
@@ -48,19 +49,25 @@ export default function SongEditScreen() {
   const [draftArtist, setDraftArtist] = useState("");
   const [draftTjNumber, setDraftTjNumber] = useState("");
   const [draftKyNumber, setDraftKyNumber] = useState("");
-  const [draftYoutubeUrl, setDraftYoutubeUrl] = useState("");
+  /** 로드 시점에 저장돼 있던 URL */
+  const [savedYoutubeUrl, setSavedYoutubeUrl] = useState("");
   const [youtubeUnlinked, setYoutubeUnlinked] = useState(false);
 
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
-  const youtubeLinkLocked = importSource === "youtube" && !youtubeUnlinked;
+  const youtubeLinkLocked = isYoutubeImportLinkLocked(
+    importSource,
+    savedYoutubeUrl,
+    youtubeUnlinked,
+  );
 
   const applySong = useCallback((s: Song) => {
     setDraftTitle(s.title);
     setDraftArtist(s.artist);
     setDraftTjNumber(s.tjNumber);
     setDraftKyNumber(s.kyNumber);
-    setDraftYoutubeUrl(normalizeYoutubeUrlForStorage(s.youtubeUrl));
+    const normalized = normalizeYoutubeUrlForStorage(s.youtubeUrl);
+    setSavedYoutubeUrl(normalized);
     setImportSource(s.importSource);
     setYoutubeUnlinked(false);
   }, []);
@@ -110,22 +117,27 @@ export default function SongEditScreen() {
     if (!title || !songId) return;
     try {
       const list = await loadSongs();
-      const next = list.map((s) =>
-        s.id === songId
-          ? {
-              ...s,
-              title,
-              artist: draftArtist.trim(),
-              tjNumber: sanitizeKaraokeDigits(draftTjNumber),
-              kyNumber: sanitizeKaraokeDigits(draftKyNumber),
-              youtubeUrl: youtubeUnlinked
-                ? ""
-                : s.importSource === "youtube"
-                  ? s.youtubeUrl
-                  : normalizeYoutubeUrlForStorage(draftYoutubeUrl),
-            }
-          : s,
-      );
+      const next = list.map((s) => {
+        if (s.id !== songId) return s;
+        const hadLockedYoutubeLink = isYoutubeImportLinkLocked(
+          s.importSource,
+          s.youtubeUrl,
+          false,
+        );
+        return {
+          ...s,
+          title,
+          artist: draftArtist.trim(),
+          tjNumber: sanitizeKaraokeDigits(draftTjNumber),
+          kyNumber: sanitizeKaraokeDigits(draftKyNumber),
+          youtubeUrl:
+            youtubeUnlinked && s.importSource === "youtube"
+              ? ""
+              : hadLockedYoutubeLink
+                ? s.youtubeUrl
+                : "",
+        };
+      });
       await saveSongs(next);
       logDebug(`[song/${songId}] 저장 완료`, "info");
       router.back();
@@ -140,16 +152,10 @@ export default function SongEditScreen() {
     draftKyNumber,
     draftTjNumber,
     draftTitle,
-    draftYoutubeUrl,
     router,
     songId,
     youtubeUnlinked,
   ]);
-
-  const displayYoutubeLocked = useMemo(() => {
-    if (youtubeUnlinked) return "";
-    return draftYoutubeUrl.trim();
-  }, [draftYoutubeUrl, youtubeUnlinked]);
 
   if (!songId) {
     return (
@@ -182,7 +188,9 @@ export default function SongEditScreen() {
 
   return (
     <ThemedView style={styles.screen}>
-      <View style={{ paddingTop: insets.top, backgroundColor: SongUi.screenBg }}>
+      <View
+        style={{ paddingTop: insets.top, backgroundColor: SongUi.screenBg }}
+      >
         <SongScreenHeader
           title="곡 정보 편집"
           onBack={() => router.back()}
@@ -220,102 +228,107 @@ export default function SongEditScreen() {
           </View>
         }
       >
-          <View style={styles.banner}>
-            <Ionicons
-              name="information-circle-outline"
-              size={18}
-              color={SongUi.youtube}
-            />
-            <Text style={styles.bannerText}>
-              곡 자체 정보를 수정하는 화면이에요. 저장을 눌러야 반영돼요.
-            </Text>
-          </View>
-
-          <Text style={styles.fieldLabel}>노래 제목</Text>
-          <KeyboardAwareField>
-            <TextInput
-              value={draftTitle}
-              onChangeText={setDraftTitle}
-              placeholder="제목"
-              placeholderTextColor={SongUi.textFaint}
-              onFocus={() => setFocusedField("title")}
-              onBlur={() => setFocusedField(null)}
-              style={inputStyle("title")}
-            />
-          </KeyboardAwareField>
-
-          <Text style={styles.fieldLabel}>가수</Text>
-          <KeyboardAwareField>
-            <TextInput
-              value={draftArtist}
-              onChangeText={setDraftArtist}
-              placeholder="가수명"
-              placeholderTextColor={SongUi.textFaint}
-              onFocus={() => setFocusedField("artist")}
-              onBlur={() => setFocusedField(null)}
-              style={inputStyle("artist")}
-            />
-          </KeyboardAwareField>
-
-          <Text style={styles.fieldLabel}>곡 번호</Text>
-          <View style={styles.numberRow}>
-            <View style={styles.numberCol}>
-              <Text style={songFieldStyles.subLabel}>태진</Text>
-              <KeyboardAwareField>
-                <TextInput
-                  value={draftTjNumber}
-                  onChangeText={(text) =>
-                    setDraftTjNumber(sanitizeKaraokeDigits(text))
-                  }
-                  placeholder="번호"
-                  placeholderTextColor={SongUi.textFaint}
-                  keyboardType="number-pad"
-                  maxLength={6}
-                  onFocus={() => setFocusedField("tj")}
-                  onBlur={() => setFocusedField(null)}
-                  style={[...inputStyle("tj"), { marginBottom: 0 }]}
-                />
-              </KeyboardAwareField>
-            </View>
-            <View style={styles.numberCol}>
-              <Text style={songFieldStyles.subLabel}>금영</Text>
-              <KeyboardAwareField>
-                <TextInput
-                  value={draftKyNumber}
-                  onChangeText={(text) =>
-                    setDraftKyNumber(sanitizeKaraokeDigits(text))
-                  }
-                  placeholder="번호"
-                  placeholderTextColor={SongUi.textFaint}
-                  keyboardType="number-pad"
-                  maxLength={6}
-                  onFocus={() => setFocusedField("ky")}
-                  onBlur={() => setFocusedField(null)}
-                  style={[...inputStyle("ky"), { marginBottom: 0 }]}
-                />
-              </KeyboardAwareField>
-            </View>
-          </View>
-
-          <Text style={[styles.fieldLabel, { marginTop: 4 }]}>
-            YouTube 링크
+        <View style={styles.banner}>
+          <Ionicons
+            name="information-circle-outline"
+            size={18}
+            color={SongUi.youtube}
+          />
+          <Text style={styles.bannerText}>
+            곡 자체 정보를 수정하는 화면이에요. 저장을 눌러야 반영돼요.
           </Text>
-          {youtubeLinkLocked ? (
-            <>
-              <View style={styles.youtubeLockedRow}>
-                <Text style={styles.youtubeLockedUrl} numberOfLines={1}>
-                  {displayYoutubeLocked}
-                </Text>
+        </View>
+
+        <Text style={styles.fieldLabel}>노래 제목</Text>
+        <KeyboardAwareField>
+          <TextInput
+            value={draftTitle}
+            onChangeText={setDraftTitle}
+            placeholder="제목"
+            placeholderTextColor={SongUi.textFaint}
+            onFocus={() => setFocusedField("title")}
+            onBlur={() => setFocusedField(null)}
+            style={inputStyle("title")}
+          />
+        </KeyboardAwareField>
+
+        <Text style={styles.fieldLabel}>가수</Text>
+        <KeyboardAwareField>
+          <TextInput
+            value={draftArtist}
+            onChangeText={setDraftArtist}
+            placeholder="가수명"
+            placeholderTextColor={SongUi.textFaint}
+            onFocus={() => setFocusedField("artist")}
+            onBlur={() => setFocusedField(null)}
+            style={inputStyle("artist")}
+          />
+        </KeyboardAwareField>
+
+        <Text style={styles.fieldLabel}>곡 번호</Text>
+        <View style={styles.numberRow}>
+          <View style={styles.numberCol}>
+            <Text style={songFieldStyles.subLabel}>태진</Text>
+            <KeyboardAwareField>
+              <TextInput
+                value={draftTjNumber}
+                onChangeText={(text) =>
+                  setDraftTjNumber(sanitizeKaraokeDigits(text))
+                }
+                placeholder="번호"
+                placeholderTextColor={SongUi.textFaint}
+                keyboardType="number-pad"
+                maxLength={6}
+                onFocus={() => setFocusedField("tj")}
+                onBlur={() => setFocusedField(null)}
+                style={[...inputStyle("tj"), { marginBottom: 0 }]}
+              />
+            </KeyboardAwareField>
+          </View>
+          <View style={styles.numberCol}>
+            <Text style={songFieldStyles.subLabel}>금영</Text>
+            <KeyboardAwareField>
+              <TextInput
+                value={draftKyNumber}
+                onChangeText={(text) =>
+                  setDraftKyNumber(sanitizeKaraokeDigits(text))
+                }
+                placeholder="번호"
+                placeholderTextColor={SongUi.textFaint}
+                keyboardType="number-pad"
+                maxLength={6}
+                onFocus={() => setFocusedField("ky")}
+                onBlur={() => setFocusedField(null)}
+                style={[...inputStyle("ky"), { marginBottom: 0 }]}
+              />
+            </KeyboardAwareField>
+          </View>
+        </View>
+
+        {youtubeLinkLocked ? (
+          <>
+            <Text style={[styles.fieldLabel, { marginTop: 4 }]}>
+              YouTube 링크
+            </Text>
+            <KeyboardAwareField>
+              <View style={styles.youtubeInputRow}>
+                <TextInput
+                  value={savedYoutubeUrl}
+                  editable={false}
+                  placeholderTextColor={SongUi.textFaint}
+                  style={[
+                    songFieldStyles.input,
+                    styles.youtubeInput,
+                    styles.youtubeInputReadonly,
+                  ]}
+                />
                 <Pressable
-                  onPress={() => {
-                    setYoutubeUnlinked(true);
-                    setDraftYoutubeUrl("");
-                  }}
+                  onPress={() => setYoutubeUnlinked(true)}
                   style={({ pressed }) => [
                     styles.unlinkBtn,
                     { opacity: pressed ? 0.85 : 1 },
                   ]}
-                  accessibilityLabel="YouTube 링크 해제"
+                  accessibilityLabel="YouTube 링크 삭제"
                 >
                   <MaterialCommunityIcons
                     name="link-off"
@@ -324,26 +337,12 @@ export default function SongEditScreen() {
                   />
                 </Pressable>
               </View>
-              <Text style={styles.youtubeHint}>
-                유튜브에서 가져온 곡은 링크 삭제만 가능해요
-              </Text>
-            </>
-          ) : (
-            <KeyboardAwareField>
-              <TextInput
-                value={draftYoutubeUrl}
-                onChangeText={setDraftYoutubeUrl}
-                placeholder="https://youtube.com/..."
-                placeholderTextColor={SongUi.textFaint}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="url"
-                onFocus={() => setFocusedField("youtube")}
-                onBlur={() => setFocusedField(null)}
-                style={inputStyle("youtube")}
-              />
             </KeyboardAwareField>
-          )}
+            <Text style={styles.youtubeHint}>
+              링크를 삭제한 이후에는 다시 붙일 수 없어요.
+            </Text>
+          </>
+        ) : null}
       </KeyboardAwareScrollView>
     </ThemedView>
   );
@@ -399,21 +398,17 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   numberCol: { flex: 1 },
-  youtubeLockedRow: {
+  youtubeInputRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    borderWidth: 1,
-    borderColor: SongUi.border,
-    borderRadius: 12,
-    backgroundColor: SongUi.cardBg,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 6,
+    marginBottom: 0,
   },
-  youtubeLockedUrl: {
+  youtubeInput: {
     flex: 1,
-    fontSize: 14,
+    marginBottom: 0,
+  },
+  youtubeInputReadonly: {
     color: SongUi.text,
   },
   unlinkBtn: {

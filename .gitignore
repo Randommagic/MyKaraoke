@@ -44,3 +44,7 @@ app-example
 
 
 .env
+
+.agents/
+.cursor/
+skills-lock.json

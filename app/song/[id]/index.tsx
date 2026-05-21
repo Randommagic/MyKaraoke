@@ -46,10 +46,14 @@ import {
   type SongGenderKey,
   type SongReadiness,
 } from "@/lib/songs-storage";
+import { normalizeYoutubeUrlForStorage } from "@/lib/youtube-import";
 import {
-  normalizeYoutubeUrlForStorage,
-  openYoutubeLink,
-} from "@/lib/youtube-import";
+  buildYoutubeButtonLabel,
+  openSongYoutube,
+  songHasYoutubeVideoLink,
+  songUsesYoutubeKaraokeSearch,
+} from "@/lib/song-youtube";
+import type { SongImportSource } from "@/lib/songs-storage";
 
 function formatLastSungLabel(sungDates: string[]): string {
   const primary = getPrimarySungDate(sungDates);
@@ -57,11 +61,6 @@ function formatLastSungLabel(sungDates: string[]): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(primary);
   if (m) return `${m[1]}.${m[2]}.${m[3]}`;
   return primary;
-}
-
-function displayYoutubeUrl(url: string): string {
-  const n = normalizeYoutubeUrlForStorage(url);
-  return n.replace(/^https?:\/\//i, "").replace(/^www\./i, "");
 }
 
 export default function SongDetailScreen() {
@@ -82,6 +81,7 @@ export default function SongDetailScreen() {
   const [tjNumber, setTjNumber] = useState("");
   const [kyNumber, setKyNumber] = useState("");
   const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [importSource, setImportSource] = useState<SongImportSource>("manual");
 
   const [memo, setMemo] = useState("");
   const memoRef = useRef(memo);
@@ -98,6 +98,7 @@ export default function SongDetailScreen() {
     setTjNumber(s.tjNumber);
     setKyNumber(s.kyNumber);
     setYoutubeUrl(normalizeYoutubeUrlForStorage(s.youtubeUrl));
+    setImportSource(s.importSource);
     const loadedMemo = clampSongMemo(s.memo ?? "");
     setMemo(loadedMemo);
     savedMemoRef.current = loadedMemo.trim();
@@ -255,10 +256,15 @@ export default function SongDetailScreen() {
     }
   }, [songId, sungDates]);
 
-  const openYouTube = useCallback(async (raw: string) => {
-    const ok = await openYoutubeLink(raw);
+  const openYouTube = useCallback(async () => {
+    const ok = await openSongYoutube({
+      importSource,
+      youtubeUrl,
+      artist,
+      title,
+    });
     if (!ok) logDebug("[song] YouTube 열기 실패", "warn");
-  }, []);
+  }, [artist, importSource, title, youtubeUrl]);
 
   const goEdit = useCallback(() => {
     Keyboard.dismiss();
@@ -300,7 +306,15 @@ export default function SongDetailScreen() {
     );
   }
 
-  const hasYoutube = youtubeUrl.trim().length > 0;
+  const songForYoutube = {
+    importSource,
+    youtubeUrl,
+    artist,
+    title,
+  };
+  const hasYoutubeVideo = songHasYoutubeVideoLink(songForYoutube);
+  const hasYoutubeSearch = songUsesYoutubeKaraokeSearch(songForYoutube);
+  const youtubeLabel = buildYoutubeButtonLabel(artist, title);
   const sungToday = isSungToday(sungDates);
 
   return (
@@ -354,21 +368,27 @@ export default function SongDetailScreen() {
             ) : null}
           </View>
 
-          {hasYoutube ? (
+          {hasYoutubeVideo || hasYoutubeSearch ? (
             <Pressable
-              onPress={() => void openYouTube(youtubeUrl)}
+              onPress={() => void openYouTube()}
               style={({ pressed }) => [
                 styles.youtubeRow,
                 { opacity: pressed ? 0.9 : 1 },
               ]}
               accessibilityRole="link"
-              accessibilityLabel="YouTube에서 열기"
+              accessibilityLabel={
+                hasYoutubeVideo
+                  ? "YouTube 영상 열기"
+                  : "YouTube에서 노래방 검색"
+              }
             >
               <Ionicons name="logo-youtube" size={20} color={SongUi.youtube} />
               <Text style={styles.youtubeUrlText} numberOfLines={1}>
-                {displayYoutubeUrl(youtubeUrl)}
+                {youtubeLabel}
               </Text>
-              <Ionicons name="play" size={18} color={SongUi.youtube} />
+              {hasYoutubeVideo ? (
+                <Ionicons name="play" size={18} color={SongUi.youtube} />
+              ) : null}
             </Pressable>
           ) : null}
 

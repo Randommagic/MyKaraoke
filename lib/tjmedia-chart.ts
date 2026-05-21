@@ -113,7 +113,7 @@ export function formatTjChartPeriodSubtitle(
   const period = `${formatTjChartYmdDisplay(searchStartDate)} ~ ${formatTjChartYmdDisplay(searchEndDate)}`;
   const category = getTjChartCategoryLabel(strType);
   if (strType == null) {
-    return `${period} 사이의 인기차트 100위`;
+    return `${period} 전체 인기차트 100위`;
   }
   return `${period} · ${category} 인기차트 100위`;
 }

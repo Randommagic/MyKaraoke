@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 
 import { logDebug } from "@/lib/debug-log-buffer";
 import { normalizeYoutubeUrlForStorage } from "@/lib/youtube-import";
+import { sanitizeSongYoutubeUrl } from "@/lib/song-youtube";
 
 /** 웹(localStorage)과 예전 AsyncStorage 키와 동일하게 두어 이전 데이터 호환 */
 const WEB_STORAGE_KEY = "@mykaraoke/songs/v1";
@@ -252,34 +253,43 @@ export function parseSongsFromUnknown(parsed: unknown): Song[] {
       const id = (row as { id?: unknown }).id;
       return id !== undefined && id !== null && String(id).length > 0;
     })
-    .map((row) => ({
-      id: String((row as { id: unknown }).id),
-      title: typeof row.title === "string" ? row.title : "",
-      artist: readString(row, "artist"),
-      tjNumber: normalizeKaraokeNumber(
-        readString(row, "tjNumber") || readString(row, "taejinNumber"),
-      ),
-      kyNumber: normalizeKaraokeNumber(
-        readString(row, "kyNumber") || readString(row, "kumyoungNumber"),
-      ),
-      memo: clampSongMemo(readString(row, "memo")),
-      youtubeUrl: normalizeYoutubeUrlForStorage(
-        readString(row, "youtubeUrl") || readString(row, "youtubeLink"),
-      ),
-      sungDates: normalizeSungDates(
-        (row as Record<string, unknown>).sungDates,
-        readString(row, "lastSungAt") || readString(row, "lastSungDate"),
-      ),
-      readiness: normalizeReadiness((row as Record<string, unknown>).readiness),
-      genderKey: normalizeGender(row.genderKey),
-      transposeSemitones:
-        typeof row.transposeSemitones === "number"
-          ? Math.max(-12, Math.min(12, Math.round(row.transposeSemitones)))
-          : 0,
-      importSource: normalizeImportSource(
+    .map((row) => {
+      const importSource = normalizeImportSource(
         (row as Record<string, unknown>).importSource,
-      ),
-    }));
+      );
+      const rawYoutube =
+        readString(row, "youtubeUrl") || readString(row, "youtubeLink");
+      const youtubeUrl =
+        importSource === "youtube"
+          ? normalizeYoutubeUrlForStorage(rawYoutube)
+          : "";
+      return sanitizeSongYoutubeUrl({
+        id: String((row as { id: unknown }).id),
+        title: typeof row.title === "string" ? row.title : "",
+        artist: readString(row, "artist"),
+        tjNumber: normalizeKaraokeNumber(
+          readString(row, "tjNumber") || readString(row, "taejinNumber"),
+        ),
+        kyNumber: normalizeKaraokeNumber(
+          readString(row, "kyNumber") || readString(row, "kumyoungNumber"),
+        ),
+        memo: clampSongMemo(readString(row, "memo")),
+        youtubeUrl,
+        sungDates: normalizeSungDates(
+          (row as Record<string, unknown>).sungDates,
+          readString(row, "lastSungAt") || readString(row, "lastSungDate"),
+        ),
+        readiness: normalizeReadiness(
+          (row as Record<string, unknown>).readiness,
+        ),
+        genderKey: normalizeGender(row.genderKey),
+        transposeSemitones:
+          typeof row.transposeSemitones === "number"
+            ? Math.max(-12, Math.min(12, Math.round(row.transposeSemitones)))
+            : 0,
+        importSource,
+      });
+    });
 }
 
 function parseSongs(raw: string | null): Song[] {

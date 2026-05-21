@@ -5,7 +5,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   TextInput,
@@ -13,10 +15,7 @@ import {
 } from "react-native";
 
 import { DesignColors } from "@/components/design/colors";
-import {
-  KeyboardAwareField,
-  KeyboardAwareScrollView,
-} from "@/components/design/keyboard-aware-scroll";
+import { KeyboardAwareField } from "@/components/design/keyboard-aware-scroll";
 import { ThemedText } from "@/components/themed-text";
 import { createSongFromYoutubeImport, type Song } from "@/lib/songs-storage";
 import {
@@ -139,6 +138,149 @@ export function YoutubeImportModal({
     }
   }, []);
 
+  const renderItem = useCallback(
+    ({ item }: { item: YoutubeImportItem }) => {
+      const alreadyAdded = existingVideoIds.has(item.videoId);
+      const on = !alreadyAdded && selected.has(item.videoId);
+      const thumbUri = youtubeThumbnailUrlFromVideoId(item.videoId);
+      return (
+        <Pressable
+          onPress={() => toggle(item.videoId)}
+          disabled={alreadyAdded}
+          style={({ pressed }) => [
+            styles.row,
+            alreadyAdded
+              ? styles.rowAdded
+              : on
+                ? styles.rowSelected
+                : styles.rowDefault,
+            { opacity: alreadyAdded ? 0.72 : pressed ? 0.85 : 1 },
+          ]}
+        >
+          <Ionicons
+            name={
+              alreadyAdded
+                ? "checkbox-outline"
+                : on
+                  ? "checkbox"
+                  : "square-outline"
+            }
+            size={22}
+            color={
+              alreadyAdded
+                ? DesignColors.textMuted
+                : on
+                  ? DesignColors.accent
+                  : DesignColors.textSecondary
+            }
+            style={styles.checkIcon}
+          />
+          <Image
+            source={{ uri: thumbUri }}
+            style={[styles.thumb, alreadyAdded ? styles.thumbMuted : null]}
+            contentFit="cover"
+            accessibilityIgnoresInvertColors
+          />
+          <View style={styles.rowText}>
+            <ThemedText
+              type="defaultSemiBold"
+              numberOfLines={2}
+              style={
+                alreadyAdded ? styles.rowTitleMuted : styles.rowTitle
+              }
+            >
+              {item.title}
+            </ThemedText>
+            {alreadyAdded ? (
+              <ThemedText style={styles.addedBadge}>이미 추가됨</ThemedText>
+            ) : null}
+          </View>
+        </Pressable>
+      );
+    },
+    [existingVideoIds, selected, toggle],
+  );
+
+  const listHeader = useMemo(
+    () => (
+      <>
+        <ThemedText type="subtitle" style={styles.modalTitle}>
+          YouTube에서 가져오기
+        </ThemedText>
+        <ThemedText style={styles.hint}>
+          영상 또는 재생목록 URL을 넣고 불러오기를 누르세요.
+        </ThemedText>
+
+        <View style={styles.urlInputRow}>
+          <KeyboardAwareField style={styles.urlInputFlex}>
+            <TextInput
+              value={url}
+              onChangeText={setUrl}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              placeholder="Youtube 링크를 입력하세요"
+              placeholderTextColor={DesignColors.textMuted}
+              style={[styles.urlInput, styles.urlInputField]}
+            />
+          </KeyboardAwareField>
+          <Pressable
+            onPress={() => void onPasteFromClipboard()}
+            style={({ pressed }) => [
+              styles.pasteBtn,
+              { opacity: pressed ? 0.75 : 1 },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="클립보드에서 붙여넣기"
+          >
+            <ThemedText style={styles.pasteBtnLabel}>붙여넣기</ThemedText>
+          </Pressable>
+        </View>
+
+        <Pressable
+          onPress={() => void onFetch()}
+          disabled={loading}
+          style={({ pressed }) => [
+            styles.fetchBtn,
+            { opacity: loading ? 0.6 : pressed ? 0.88 : 1 },
+          ]}
+        >
+          {loading ? (
+            <ActivityIndicator color={DesignColors.textOnAccent} />
+          ) : (
+            <ThemedText style={styles.fetchBtnLabel}>불러오기</ThemedText>
+          )}
+        </Pressable>
+
+        {error ? (
+          <ThemedText style={styles.errorText}>{error}</ThemedText>
+        ) : null}
+
+        {items.length > 0 ? (
+          <View style={styles.selectRow}>
+            <Pressable onPress={selectAll} style={styles.selectLink}>
+              <ThemedText style={styles.selectLinkLabel}>전체 선택</ThemedText>
+            </Pressable>
+            <ThemedText style={styles.selectDivider}> | </ThemedText>
+            <Pressable onPress={selectNone} style={styles.selectLink}>
+              <ThemedText style={styles.selectLinkLabel}>전체 해제</ThemedText>
+            </Pressable>
+          </View>
+        ) : null}
+      </>
+    ),
+    [
+      error,
+      items.length,
+      loading,
+      onFetch,
+      onPasteFromClipboard,
+      selectAll,
+      selectNone,
+      url,
+    ],
+  );
+
   return (
     <Modal
       visible={visible}
@@ -149,145 +291,23 @@ export function YoutubeImportModal({
       <View style={styles.modalRoot}>
         <Pressable style={styles.modalBackdrop} onPress={onClose} />
         <View style={styles.modalCard}>
-          <KeyboardAwareScrollView fill={false} extraBottomPadding={16}>
-          <ThemedText type="subtitle" style={styles.modalTitle}>
-            YouTube에서 가져오기
-          </ThemedText>
-          <ThemedText style={styles.hint}>
-            영상 또는 재생목록 URL을 넣고 불러오기를 누르세요.
-          </ThemedText>
-
-          <View style={styles.urlInputRow}>
-            <KeyboardAwareField style={styles.urlInputFlex}>
-              <TextInput
-                value={url}
-                onChangeText={setUrl}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="url"
-                placeholder="Youtube 링크를 입력하세요"
-                placeholderTextColor={DesignColors.textMuted}
-                style={[styles.urlInput, styles.urlInputField]}
-              />
-            </KeyboardAwareField>
-            <Pressable
-              onPress={() => void onPasteFromClipboard()}
-              style={({ pressed }) => [
-                styles.pasteBtn,
-                { opacity: pressed ? 0.75 : 1 },
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="클립보드에서 붙여넣기"
-            >
-              <ThemedText style={styles.pasteBtnLabel}>붙여넣기</ThemedText>
-            </Pressable>
-          </View>
-
-          <Pressable
-            onPress={() => void onFetch()}
-            disabled={loading}
-            style={({ pressed }) => [
-              styles.fetchBtn,
-              { opacity: loading ? 0.6 : pressed ? 0.88 : 1 },
-            ]}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={styles.modalBody}
           >
-            {loading ? (
-              <ActivityIndicator color={DesignColors.textOnAccent} />
-            ) : (
-              <ThemedText style={styles.fetchBtnLabel}>불러오기</ThemedText>
-            )}
-          </Pressable>
-
-          {error ? (
-            <ThemedText style={styles.errorText}>{error}</ThemedText>
-          ) : null}
-
-          {items.length > 0 ? (
-            <>
-              <View style={styles.selectRow}>
-                <Pressable onPress={selectAll} style={styles.selectLink}>
-                  <ThemedText style={styles.selectLinkLabel}>전체 선택</ThemedText>
-                </Pressable>
-                <ThemedText style={styles.selectDivider}> | </ThemedText>
-                <Pressable onPress={selectNone} style={styles.selectLink}>
-                  <ThemedText style={styles.selectLinkLabel}>전체 해제</ThemedText>
-                </Pressable>
-              </View>
-              <FlatList
-                data={items}
-                keyExtractor={(it) => it.videoId}
-                style={styles.list}
-                nestedScrollEnabled
-                renderItem={({ item }) => {
-                  const alreadyAdded = existingVideoIds.has(item.videoId);
-                  const on = !alreadyAdded && selected.has(item.videoId);
-                  const thumbUri = youtubeThumbnailUrlFromVideoId(item.videoId);
-                  return (
-                    <Pressable
-                      onPress={() => toggle(item.videoId)}
-                      disabled={alreadyAdded}
-                      style={({ pressed }) => [
-                        styles.row,
-                        alreadyAdded
-                          ? styles.rowAdded
-                          : on
-                            ? styles.rowSelected
-                            : styles.rowDefault,
-                        { opacity: alreadyAdded ? 0.72 : pressed ? 0.85 : 1 },
-                      ]}
-                    >
-                      <Ionicons
-                        name={
-                          alreadyAdded
-                            ? "checkbox-outline"
-                            : on
-                              ? "checkbox"
-                              : "square-outline"
-                        }
-                        size={22}
-                        color={
-                          alreadyAdded
-                            ? DesignColors.textMuted
-                            : on
-                              ? DesignColors.accent
-                              : DesignColors.textSecondary
-                        }
-                        style={styles.checkIcon}
-                      />
-                      <Image
-                        source={{ uri: thumbUri }}
-                        style={[
-                          styles.thumb,
-                          alreadyAdded ? styles.thumbMuted : null,
-                        ]}
-                        contentFit="cover"
-                        accessibilityIgnoresInvertColors
-                      />
-                      <View style={styles.rowText}>
-                        <ThemedText
-                          type="defaultSemiBold"
-                          numberOfLines={2}
-                          style={
-                            alreadyAdded
-                              ? styles.rowTitleMuted
-                              : styles.rowTitle
-                          }
-                        >
-                          {item.title}
-                        </ThemedText>
-                        {alreadyAdded ? (
-                          <ThemedText style={styles.addedBadge}>
-                            이미 추가됨
-                          </ThemedText>
-                        ) : null}
-                      </View>
-                    </Pressable>
-                  );
-                }}
-              />
-            </>
-          ) : null}
-          </KeyboardAwareScrollView>
+            <FlatList
+              data={items}
+              keyExtractor={(it) => it.videoId}
+              renderItem={renderItem}
+              ListHeaderComponent={listHeader}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              automaticallyAdjustKeyboardInsets
+              showsVerticalScrollIndicator
+              style={styles.list}
+              contentContainerStyle={styles.listContent}
+            />
+          </KeyboardAvoidingView>
 
           <View style={styles.footer}>
             <Pressable
@@ -339,6 +359,10 @@ const styles = StyleSheet.create({
     maxWidth: 520,
     alignSelf: "center",
     backgroundColor: DesignColors.bgCard,
+  },
+  modalBody: {
+    flexShrink: 1,
+    minHeight: 0,
   },
   modalTitle: {
     marginBottom: 8,
@@ -425,8 +449,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   list: {
-    maxHeight: 320,
-    marginBottom: 12,
+    maxHeight: 420,
+  },
+  listContent: {
+    paddingBottom: 8,
   },
   row: {
     flexDirection: "row",

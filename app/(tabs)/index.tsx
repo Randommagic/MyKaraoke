@@ -43,7 +43,6 @@ import { mapStorageSongToCardModel } from "@/components/design/map-song";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { YoutubeImportModal } from "@/components/youtube-import-modal";
-import { normalizeYoutubeUrlForStorage } from "@/lib/youtube-import";
 import { logDebug } from "@/lib/debug-log-buffer";
 import {
   formatTranspose,
@@ -380,7 +379,6 @@ export default function HomeScreen() {
   const [draftTjNumber, setDraftTjNumber] = useState("");
   const [draftKyNumber, setDraftKyNumber] = useState("");
   const [draftMemo, setDraftMemo] = useState("");
-  const [draftYoutubeUrl, setDraftYoutubeUrl] = useState("");
   const [draftGender, setDraftGender] = useState<SongGenderKey>("unset");
   const [draftReadiness, setDraftReadiness] = useState<SongReadiness>("none");
   const [draftTranspose, setDraftTranspose] = useState(0);
@@ -463,7 +461,6 @@ export default function HomeScreen() {
     setDraftTjNumber("");
     setDraftKyNumber("");
     setDraftMemo("");
-    setDraftYoutubeUrl("");
     setDraftGender("unset");
     setDraftReadiness("none");
     setDraftTranspose(0);
@@ -482,7 +479,6 @@ export default function HomeScreen() {
     const tjNumber = sanitizeKaraokeDigits(draftTjNumber);
     const kyNumber = sanitizeKaraokeDigits(draftKyNumber);
     const memo = clampSongMemo(draftMemo.trim());
-    const youtubeUrl = normalizeYoutubeUrlForStorage(draftYoutubeUrl);
     try {
       const song: Song = {
         id: createSongId(),
@@ -491,7 +487,7 @@ export default function HomeScreen() {
         tjNumber,
         kyNumber,
         memo,
-        youtubeUrl,
+        youtubeUrl: "",
         sungDates: [],
         readiness: draftReadiness,
         genderKey: draftGender,
@@ -510,7 +506,6 @@ export default function HomeScreen() {
     draftReadiness,
     draftKyNumber,
     draftMemo,
-    draftYoutubeUrl,
     draftTjNumber,
     draftTitle,
     draftTranspose,
@@ -1014,18 +1009,6 @@ export default function HomeScreen() {
               <ThemedText style={styles.memoCounter}>
                 [{draftMemo.length}/{MAX_SONG_MEMO_LENGTH}]
               </ThemedText>
-
-              <ThemedText style={styles.fieldLabel}>YouTube 링크</ThemedText>
-              <KeyboardAwareField>
-                <TextInput
-                  value={draftYoutubeUrl}
-                  onChangeText={setDraftYoutubeUrl}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="url"
-                  style={[styles.modalInput, inputSurfaceStyle]}
-                />
-              </KeyboardAwareField>
             </KeyboardAwareScrollView>
           </View>
         </View>
