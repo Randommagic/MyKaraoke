@@ -4,11 +4,12 @@ import { useCallback, useMemo, useRef } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { DesignColors } from "@/components/design/colors";
 import { useConfirm } from "@/components/design/confirm-dialog-context";
 import { ScreenTitle } from "@/components/design/ScreenTitle";
+import { useOnboarding } from "@/components/onboarding/OnboardingProvider";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { DesignColors } from "@/components/design/colors";
 import { formatAppVersionLabel, getAppInfo } from "@/lib/app-info";
 import { logDebug } from "@/lib/debug-log-buffer";
 import { resetAllSongs } from "@/lib/songs-storage";
@@ -18,18 +19,9 @@ type SettingsMenuItem = {
   label: string;
   subtitle?: string;
   icon: keyof typeof Ionicons.glyphMap;
-  href: "/settings/backup";
+  href?: "/settings/backup";
+  onPress?: () => void;
 };
-
-const MENU_ITEMS: SettingsMenuItem[] = [
-  {
-    key: "backup",
-    label: "백업 및 불러오기",
-    subtitle: "클립보드로 보내기·가져오기",
-    icon: "cloud-outline",
-    href: "/settings/backup",
-  },
-];
 
 const SECRET_LOG_TAP_COUNT = 7;
 const SECRET_LOG_TAP_WINDOW_MS = 700;
@@ -37,11 +29,28 @@ const SECRET_LOG_TAP_WINDOW_MS = 700;
 export default function SettingsScreen() {
   const confirm = useConfirm();
   const router = useRouter();
+  const { showOnboarding } = useOnboarding();
   const insets = useSafeAreaInsets();
   const appInfo = useMemo(() => getAppInfo(), []);
-  const versionLabel = useMemo(
-    () => formatAppVersionLabel(appInfo),
-    [appInfo],
+  const versionLabel = useMemo(() => formatAppVersionLabel(appInfo), [appInfo]);
+
+  const menuItems = useMemo<SettingsMenuItem[]>(
+    () => [
+      {
+        key: "onboarding",
+        label: "도움말 다시 보기",
+        icon: "help-circle-outline",
+        onPress: showOnboarding,
+      },
+      {
+        key: "backup",
+        label: "백업 및 불러오기",
+        subtitle: "클립보드로 보내기·가져오기",
+        icon: "cloud-outline",
+        href: "/settings/backup",
+      },
+    ],
+    [showOnboarding],
   );
 
   const secretLogTapRef = useRef({ count: 0, lastAt: 0 });
@@ -107,13 +116,19 @@ export default function SettingsScreen() {
       </Pressable>
 
       <View style={styles.menu}>
-        {MENU_ITEMS.map((item, index) => (
+        {menuItems.map((item, index) => (
           <Pressable
             key={item.key}
-            onPress={() => router.push(item.href)}
+            onPress={() => {
+              if (item.onPress) {
+                item.onPress();
+                return;
+              }
+              if (item.href) router.push(item.href);
+            }}
             style={({ pressed }) => [
               styles.row,
-              index < MENU_ITEMS.length - 1 ? styles.rowDivider : null,
+              index < menuItems.length - 1 ? styles.rowDivider : null,
               { opacity: pressed ? 0.75 : 1 },
             ]}
             accessibilityRole="button"

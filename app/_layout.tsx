@@ -10,6 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
 import { ConfirmDialogProvider } from '@/components/design/confirm-dialog-context';
+import { OnboardingProvider } from '@/components/onboarding/OnboardingProvider';
 import { YoutubeShareIntentProvider } from '@/components/youtube-share-intent-provider';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { installGlobalConsoleCapture, installUnhandledErrorLogging } from '@/lib/debug-log-buffer';
@@ -35,18 +36,20 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <YoutubeShareIntentProvider>
-          <ConfirmDialogProvider>
-            <Stack>
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen
-                name="song/[id]"
-                options={{ headerShown: false }}
-              />
-            </Stack>
-            <StatusBar style="auto" />
-          </ConfirmDialogProvider>
-          </YoutubeShareIntentProvider>
+          <OnboardingProvider>
+            <YoutubeShareIntentProvider>
+              <ConfirmDialogProvider>
+                <Stack>
+                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                  <Stack.Screen
+                    name="song/[id]"
+                    options={{ headerShown: false }}
+                  />
+                </Stack>
+                <StatusBar style="auto" />
+              </ConfirmDialogProvider>
+            </YoutubeShareIntentProvider>
+          </OnboardingProvider>
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

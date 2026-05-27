@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
-import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -17,29 +17,29 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { Swipeable } from "react-native-gesture-handler";
 import DraggableFlatList, {
   ScaleDecorator,
   type RenderItemParams,
 } from "react-native-draggable-flatlist";
+import { Swipeable } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { DesignColors } from "@/components/design/colors";
 import {
   useConfirm,
   type ConfirmFn,
 } from "@/components/design/confirm-dialog-context";
-import { DesignColors } from "@/components/design/colors";
 import {
   KeyboardAwareField,
   KeyboardAwareScrollView,
 } from "@/components/design/keyboard-aware-scroll";
-import { ScreenTitle } from "@/components/design/ScreenTitle";
-import {
-  SwipeActionPanel,
-  SWIPE_ACTION_WIDTH,
-} from "@/components/design/SwipeActionPanel";
-import { SongCard } from "@/components/design/SongCard";
 import { mapStorageSongToCardModel } from "@/components/design/map-song";
+import { ScreenTitle } from "@/components/design/ScreenTitle";
+import { SongCard } from "@/components/design/SongCard";
+import {
+  SWIPE_ACTION_WIDTH,
+  SwipeActionPanel,
+} from "@/components/design/SwipeActionPanel";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { YoutubeImportModal } from "@/components/youtube-import-modal";
@@ -59,8 +59,8 @@ import {
   loadSongs,
   MAX_SONG_MEMO_LENGTH,
   saveSongs,
-  toggleSungTodayInDates,
   SONG_READINESS_OPTIONS,
+  toggleSungTodayInDates,
   type Song,
   type SongGenderKey,
   type SongReadiness,
@@ -290,9 +290,7 @@ function SwipeableSongRow({
 
   return (
     <ScaleDecorator activeScale={1.02}>
-      <View
-        style={[styles.songCardRow, isActive ? { opacity: 0.92 } : null]}
-      >
+      <View style={[styles.songCardRow, isActive ? { opacity: 0.92 } : null]}>
         <Pressable
           onLongPress={() => {
             if (dragReorderEnabled) {
@@ -334,15 +332,15 @@ function SwipeableSongRow({
             onSwipeableWillOpen={() => closeOtherSwipes(item.id)}
             onSwipeableOpen={(direction) => {
               swipeRef.current?.close();
-          if (direction === "left") {
-            confirm({
-              title: "삭제하시겠습니까?",
-              confirmLabel: "삭제",
-              destructive: true,
-              onConfirm: onRequestDelete,
-            });
-            return;
-          }
+              if (direction === "left") {
+                confirm({
+                  title: "삭제하시겠습니까?",
+                  confirmLabel: "삭제",
+                  destructive: true,
+                  onConfirm: onRequestDelete,
+                });
+                return;
+              }
               if (direction !== "right") return;
               if (Platform.OS !== "web") {
                 void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -645,7 +643,7 @@ export default function HomeScreen() {
       result = result.filter(
         (s) =>
           s.title.toLowerCase().includes(q) ||
-          s.artist.toLowerCase().includes(q)
+          s.artist.toLowerCase().includes(q),
       );
     }
     return result;
@@ -690,17 +688,44 @@ export default function HomeScreen() {
                   autoFocus
                 />
                 {searchQuery.length > 0 && (
-                  <Pressable onPress={() => setSearchQuery("")} style={styles.searchClearBtn} accessibilityLabel="검색어 지우기">
-                    <Ionicons name="close-circle" size={16} color={DesignColors.textMuted} />
+                  <Pressable
+                    onPress={() => setSearchQuery("")}
+                    style={styles.searchClearBtn}
+                    accessibilityLabel="검색어 지우기"
+                  >
+                    <Ionicons
+                      name="close-circle"
+                      size={16}
+                      color={DesignColors.textMuted}
+                    />
                   </Pressable>
                 )}
-                <Pressable onPress={() => { setIsSearchExpanded(false); setSearchQuery(""); }} style={styles.searchCloseBtn} accessibilityLabel="검색 닫기">
-                  <Ionicons name="close" size={20} color={DesignColors.textPrimary} />
+                <Pressable
+                  onPress={() => {
+                    setIsSearchExpanded(false);
+                    setSearchQuery("");
+                  }}
+                  style={styles.searchCloseBtn}
+                  accessibilityLabel="검색 닫기"
+                >
+                  <Ionicons
+                    name="close"
+                    size={20}
+                    color={DesignColors.textPrimary}
+                  />
                 </Pressable>
               </View>
             ) : (
-              <Pressable onPress={() => setIsSearchExpanded(true)} style={styles.searchIconBtn} accessibilityLabel="검색 열기">
-                <Ionicons name="search" size={24} color={DesignColors.textPrimary} />
+              <Pressable
+                onPress={() => setIsSearchExpanded(true)}
+                style={styles.searchIconBtn}
+                accessibilityLabel="검색 열기"
+              >
+                <Ionicons
+                  name="search"
+                  size={24}
+                  color={DesignColors.textPrimary}
+                />
               </Pressable>
             )}
           </View>
@@ -713,7 +738,11 @@ export default function HomeScreen() {
       </View>
 
       <DraggableFlatList
-        data={readinessFilter === "all" && searchQuery.length === 0 ? songs : filteredSongs}
+        data={
+          readinessFilter === "all" && searchQuery.length === 0
+            ? songs
+            : filteredSongs
+        }
         keyExtractor={(item) => item.id}
         containerStyle={styles.listFlex}
         style={styles.listFlex}
@@ -721,16 +750,16 @@ export default function HomeScreen() {
         activationDistance={12}
         removeClippedSubviews={false}
         ListEmptyComponent={
-          <ThemedText
-            style={styles.emptyListHint}
-          >
+          <ThemedText style={styles.emptyListHint}>
             {readinessFilter === "all" && searchQuery.length === 0
-              ? "등록된 곡이 없습니다. 우하단 + 버튼에서 새 곡을 추가해 보세요."
+              ? "등록된 곡이 없습니다.\n우하단 + 버튼에서 새 곡을 추가해 보세요."
               : "조건에 맞는 곡이 없습니다."}
           </ThemedText>
         }
         onDragEnd={({ data }) =>
-          (readinessFilter === "all" && searchQuery.length === 0) ? void handleDragEnd(data) : undefined
+          readinessFilter === "all" && searchQuery.length === 0
+            ? void handleDragEnd(data)
+            : undefined
         }
         renderItem={({ item, drag, isActive }: RenderItemParams<Song>) => (
           <SwipeableSongRow
@@ -747,7 +776,9 @@ export default function HomeScreen() {
             drag={drag}
             isActive={isActive}
             swipeEnabled
-            dragReorderEnabled={readinessFilter === "all" && searchQuery.length === 0}
+            dragReorderEnabled={
+              readinessFilter === "all" && searchQuery.length === 0
+            }
             onDisabledDragAttempt={showReorderDisabledToast}
           />
         )}
@@ -779,7 +810,11 @@ export default function HomeScreen() {
               accessibilityRole="menuitem"
               accessibilityLabel="직접 추가"
             >
-              <Ionicons name="create-outline" size={22} color={DesignColors.accent} />
+              <Ionicons
+                name="create-outline"
+                size={22}
+                color={DesignColors.accent}
+              />
               <ThemedText type="defaultSemiBold">직접 추가</ThemedText>
             </Pressable>
             <View style={styles.fabBubbleDivider} />
@@ -844,7 +879,9 @@ export default function HomeScreen() {
                       { opacity: pressed ? 0.6 : 1 },
                     ]}
                   >
-                    <ThemedText style={styles.modalCancelLabel}>취소</ThemedText>
+                    <ThemedText style={styles.modalCancelLabel}>
+                      취소
+                    </ThemedText>
                   </Pressable>
                   <Pressable
                     onPress={handleSaveModal}
