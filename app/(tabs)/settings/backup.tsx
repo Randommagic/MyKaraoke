@@ -9,8 +9,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useConfirm } from "@/components/design/confirm-dialog-context";
 import { DesignColors } from "@/components/design/colors";
+import { useConfirm } from "@/components/design/confirm-dialog-context";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { logDebug } from "@/lib/debug-log-buffer";
@@ -132,8 +132,8 @@ export default function BackupScreen() {
     <ThemedView style={[styles.root, { paddingBottom: insets.bottom + 24 }]}>
       <View style={styles.content}>
         <ThemedText style={styles.description}>
-          곡 목록을 Base64 문자열로 클립보드에 복사하거나, 복사해 둔 문자열을
-          붙여넣은 뒤 불러올 수 있습니다.
+          곡 목록을 문자열로 클립보드에 복사하거나, 복사해 둔 문자열을 붙여넣은
+          뒤 불러올 수 있습니다.
         </ThemedText>
 
         <ThemedText style={styles.sectionLabel}>보내기</ThemedText>
@@ -175,8 +175,8 @@ export default function BackupScreen() {
         <View style={styles.noteBox}>
           <ThemedText style={styles.note}>
             불러오기는 클립보드의 Base64 문자열을 읽습니다. 다른 기기에서
-            보내기로 복사한 뒤, 이 기기 클립보드에 붙여넣고 불러오기를
-            누르세요. 기존 곡 목록은 교체됩니다.
+            보내기로 복사한 뒤, 이 기기 클립보드에 붙여넣고 불러오기를 누르세요.
+            기존 곡 목록은 교체됩니다.
           </ThemedText>
         </View>
       </View>

@@ -33,7 +33,7 @@ function BadgeChip({
   label,
   backgroundColor,
   textColor,
-  bordered = false,
+  bordered = true,
   bold = false,
 }: {
   label: string;

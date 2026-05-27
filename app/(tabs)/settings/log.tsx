@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useNavigation } from "@react-navigation/native";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -8,7 +15,6 @@ import {
   Text,
   View,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
 
 import { DesignColors } from "@/components/design/colors";
 import { ThemedText } from "@/components/themed-text";
@@ -19,7 +25,10 @@ import {
   type LogEntry,
   subscribeDebugLogs,
 } from "@/lib/debug-log-buffer";
-import { runStorageDiagnostics, readRawSongsStorageForDebug } from "@/lib/songs-storage";
+import {
+  readRawSongsStorageForDebug,
+  runStorageDiagnostics,
+} from "@/lib/songs-storage";
 
 function levelColor(level: LogEntry["level"]): string {
   switch (level) {
@@ -72,9 +81,7 @@ export default function SettingsLogScreen() {
           accessibilityRole="button"
           accessibilityLabel="비우기"
         >
-          <ThemedText
-            style={{ color: DesignColors.accent, fontWeight: "600" }}
-          >
+          <ThemedText style={{ color: DesignColors.accent, fontWeight: "600" }}>
             비우기
           </ThemedText>
         </Pressable>
@@ -115,12 +122,7 @@ export default function SettingsLogScreen() {
             second: "2-digit",
           })}
         </Text>
-        <Text
-          style={[
-            styles.level,
-            { color: levelColor(item.level) },
-          ]}
-        >
+        <Text style={[styles.level, { color: levelColor(item.level) }]}>
           {item.level.toUpperCase()}
         </Text>
         <Text style={styles.message} selectable>
@@ -134,12 +136,6 @@ export default function SettingsLogScreen() {
   const listHeader = useMemo(
     () => (
       <View style={styles.headerBlock}>
-        <ThemedText style={styles.hint}>
-          아래는 앱이 직접 남기는 로그와,{" "}
-          <ThemedText type="defaultSemiBold">console.*</ThemedText> 후킹 결과입니다.
-          Metro 터미널·OS 네이티브 로그는 기본적으로 여기에 안 나옵니다.
-        </ThemedText>
-
         <View style={styles.diagRow}>
           <Pressable
             onPress={onRunDiag}
@@ -206,7 +202,15 @@ export default function SettingsLogScreen() {
         ) : null}
       </View>
     ),
-    [diagLines, diagRunning, onLoadRawFile, onRunDiag, rawFormatted, rawLoading, rawPathLabel],
+    [
+      diagLines,
+      diagRunning,
+      onLoadRawFile,
+      onRunDiag,
+      rawFormatted,
+      rawLoading,
+      rawPathLabel,
+    ],
   );
 
   return (
@@ -219,8 +223,8 @@ export default function SettingsLogScreen() {
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           <ThemedText style={styles.emptyList}>
-            아직 로그가 없습니다. 홈에서 곡 저장을 시도하거나「저장소 점검」을 눌러
-            보세요.
+            아직 로그가 없습니다. 홈에서 곡 저장을 시도하거나「저장소 점검」을
+            눌러 보세요.
           </ThemedText>
         }
       />

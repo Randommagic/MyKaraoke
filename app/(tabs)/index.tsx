@@ -296,6 +296,9 @@ function SwipeableSongRow({
         <Pressable
           onLongPress={() => {
             if (dragReorderEnabled) {
+              if (Platform.OS !== "web") {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }
               drag();
             } else {
               onDisabledDragAttempt();

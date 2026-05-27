@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -18,7 +18,7 @@ type SettingsMenuItem = {
   label: string;
   subtitle?: string;
   icon: keyof typeof Ionicons.glyphMap;
-  href: "/settings/backup" | "/settings/log";
+  href: "/settings/backup";
 };
 
 const MENU_ITEMS: SettingsMenuItem[] = [
@@ -29,14 +29,10 @@ const MENU_ITEMS: SettingsMenuItem[] = [
     icon: "cloud-outline",
     href: "/settings/backup",
   },
-  {
-    key: "log",
-    label: "로그",
-    subtitle: "앱 동작 기록·저장소 점검",
-    icon: "document-text-outline",
-    href: "/settings/log",
-  },
 ];
+
+const SECRET_LOG_TAP_COUNT = 7;
+const SECRET_LOG_TAP_WINDOW_MS = 700;
 
 export default function SettingsScreen() {
   const confirm = useConfirm();
@@ -47,6 +43,22 @@ export default function SettingsScreen() {
     () => formatAppVersionLabel(appInfo),
     [appInfo],
   );
+
+  const secretLogTapRef = useRef({ count: 0, lastAt: 0 });
+
+  const onTitlePress = useCallback(() => {
+    const now = Date.now();
+    const state = secretLogTapRef.current;
+    if (now - state.lastAt > SECRET_LOG_TAP_WINDOW_MS) {
+      state.count = 0;
+    }
+    state.lastAt = now;
+    state.count += 1;
+    if (state.count >= SECRET_LOG_TAP_COUNT) {
+      state.count = 0;
+      router.push("/settings/log");
+    }
+  }, [router]);
 
   const onResetData = useCallback(() => {
     confirm({
@@ -85,7 +97,14 @@ export default function SettingsScreen() {
 
   return (
     <ThemedView style={[styles.root, { paddingTop: insets.top + 12 }]}>
-      <ScreenTitle style={styles.title}>설정</ScreenTitle>
+      <Pressable
+        onPress={onTitlePress}
+        hitSlop={8}
+        accessibilityRole="header"
+        accessibilityLabel="설정"
+      >
+        <ScreenTitle style={styles.title}>설정</ScreenTitle>
+      </Pressable>
 
       <View style={styles.menu}>
         {MENU_ITEMS.map((item, index) => (
@@ -145,9 +164,6 @@ export default function SettingsScreen() {
 
       <View style={styles.infoSection}>
         <ThemedText style={styles.infoHeading}>앱 정보</ThemedText>
-        <ThemedText type="defaultSemiBold" style={styles.infoName}>
-          {appInfo.name}
-        </ThemedText>
         <View style={styles.infoRow}>
           <ThemedText style={styles.infoLabel}>버전</ThemedText>
           <ThemedText style={styles.infoValue}>{versionLabel}</ThemedText>
@@ -241,15 +257,11 @@ const styles = StyleSheet.create({
     marginBottom: 2,
     color: DesignColors.textSecondary,
   },
-  infoName: {
-    fontSize: 16,
-  },
   infoRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
-    marginTop: 4,
   },
   infoLabel: {
     fontSize: 14,
