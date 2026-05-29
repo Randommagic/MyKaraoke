@@ -23,7 +23,7 @@ export function readinessToDesignStatus(
 function sungDateToIso(ymd: string): string | null {
   const s = ymd.trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
-  return `${s}T12:00:00`;
+  return s;
 }
 
 export function mapStorageSongToCardModel(song: Song): SongCardModel {

@@ -1,29 +1,35 @@
 import { Platform, StyleSheet, Text, View } from "react-native";
 
 import { DesignColors } from "@/components/design/colors";
-import type { DateRange, GenderBadgeKey, ReadyStatus } from "@/components/design/types";
+import { getDateRangeFromLastSungAt } from "@/components/design/sung-recency";
+import type {
+  DateRange,
+  GenderBadgeKey,
+  ReadyStatus,
+} from "@/components/design/types";
+import { UI_STRINGS } from "@/lib/ui-strings";
 
 const READY_CONFIG: Record<
   ReadyStatus,
   { label: string; bg: string; text: string }
 > = {
   none: {
-    label: "미정",
+    label: UI_STRINGS.readiness.none,
     bg: DesignColors.badgeNoneBg,
     text: DesignColors.badgeNoneText,
   },
   done: {
-    label: "완창",
+    label: UI_STRINGS.readiness.can_full,
     bg: DesignColors.badgeDoneBg,
     text: DesignColors.badgeDoneText,
   },
   practice: {
-    label: "연습",
+    label: UI_STRINGS.readiness.need_practice,
     bg: DesignColors.badgePracBg,
     text: DesignColors.badgePracText,
   },
   try: {
-    label: "시도",
+    label: UI_STRINGS.readiness.will_try,
     bg: DesignColors.badgeTryBg,
     text: DesignColors.badgeTryText,
   },
@@ -79,12 +85,12 @@ const GENDER_CONFIG: Record<
   { label: string; bg: string; text: string }
 > = {
   male: {
-    label: "남",
+    label: UI_STRINGS.genderBadge.male,
     bg: DesignColors.badgeMaleBg,
     text: DesignColors.badgeMaleText,
   },
   female: {
-    label: "여",
+    label: UI_STRINGS.genderBadge.female,
     bg: DesignColors.badgeFemaleBg,
     text: DesignColors.badgeFemaleText,
   },
@@ -103,7 +109,12 @@ export function GenderBadge({ gender }: { gender: GenderBadgeKey }) {
 }
 
 export function KeyBadge({ offset }: { offset: number }) {
-  const label = offset === 0 ? "원키" : offset > 0 ? `+${offset}` : `${offset}`;
+  const label =
+    offset === 0
+      ? UI_STRINGS.key.original
+      : offset > 0
+        ? `+${offset}`
+        : `${offset}`;
   return (
     <BadgeChip
       label={`♪ ${label}`}
@@ -114,49 +125,49 @@ export function KeyBadge({ offset }: { offset: number }) {
   );
 }
 
-function getDateRange(lastSungAt: string | null): DateRange {
-  if (!lastSungAt) return null;
-  const diff = Math.floor(
-    (Date.now() - new Date(lastSungAt).getTime()) / (1000 * 60 * 60 * 24),
-  );
-  if (diff === 0) return "today";
-  if (diff <= 7) return "week";
-  if (diff <= 30) return "month";
-  return null;
-}
+const DATE_BADGE_CONFIG: Record<
+  Exclude<DateRange, null>,
+  {
+    backgroundColor: string;
+    textColor: string;
+    bordered?: boolean;
+  }
+> = {
+  today: {
+    backgroundColor: DesignColors.dateToday,
+    textColor: "#fff",
+  },
+  week: {
+    backgroundColor: DesignColors.dateWeekBg,
+    textColor: DesignColors.dateWeekText,
+  },
+  within15: {
+    backgroundColor: DesignColors.dateWithin15Bg,
+    textColor: DesignColors.dateWithin15Text,
+    bordered: true,
+  },
+  month: {
+    backgroundColor: DesignColors.dateMonthBg,
+    textColor: DesignColors.dateMonthText,
+    bordered: true,
+  },
+};
 
 export function DateBadge({ lastSungAt }: { lastSungAt: string | null }) {
-  const range = getDateRange(lastSungAt);
+  const range = getDateRangeFromLastSungAt(lastSungAt);
+  if (!range) return null;
 
-  if (!range) {
-    return null;
-  }
-  if (range === "today") {
-    return (
-      <View style={[styles.dateBadge, { backgroundColor: DesignColors.dateToday }]}>
-        <Text style={[styles.dateBadgeText, { color: "#fff" }]}>오늘</Text>
-      </View>
-    );
-  }
-  if (range === "week") {
-    return (
-      <View style={[styles.dateBadge, { backgroundColor: DesignColors.dateWeekBg }]}>
-        <Text style={[styles.dateBadgeText, { color: DesignColors.dateWeekText }]}>
-          7일 이내
-        </Text>
-      </View>
-    );
-  }
+  const cfg = DATE_BADGE_CONFIG[range];
   return (
     <View
       style={[
         styles.dateBadge,
-        styles.dateMonthBorder,
-        { backgroundColor: DesignColors.dateMonthBg },
+        cfg.bordered ? styles.dateMonthBorder : null,
+        { backgroundColor: cfg.backgroundColor },
       ]}
     >
-      <Text style={[styles.dateBadgeText, { color: DesignColors.dateMonthText }]}>
-        30일 이내
+      <Text style={[styles.dateBadgeText, { color: cfg.textColor }]}>
+        {UI_STRINGS.sungRecency[range]}
       </Text>
     </View>
   );
@@ -179,8 +190,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 8,
     paddingVertical: BADGE_VERTICAL_PAD,
-    minHeight:
-      BADGE_LINE_HEIGHT + BADGE_VERTICAL_PAD * 2 + BADGE_BORDER * 2,
+    minHeight: BADGE_LINE_HEIGHT + BADGE_VERTICAL_PAD * 2 + BADGE_BORDER * 2,
     borderRadius: 20,
     borderWidth: BADGE_BORDER,
     borderColor: "transparent",

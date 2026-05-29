@@ -3,10 +3,9 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Animated,
   FlatList,
   Modal,
   Pressable,
@@ -20,7 +19,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DesignColors } from "@/components/design/colors";
 import { MarqueeText } from "@/components/design/MarqueeText";
 import { ScreenTitle } from "@/components/design/ScreenTitle";
-import { ThemedText } from "@/components/themed-text";
 import { logDebug } from "@/lib/debug-log-buffer";
 import { sanitizeKaraokeDigits } from "@/lib/song-form-helpers";
 import {
@@ -155,6 +153,59 @@ function chartCategoryToStrType(
   return categoryId === "all" ? undefined : categoryId;
 }
 
+function ChartModalSongPreview({
+  title,
+  artist,
+  tjPro,
+  imageUri,
+}: {
+  title: string;
+  artist: string;
+  tjPro?: string | number;
+  imageUri?: string | null;
+}) {
+  const uri = imageUri?.trim();
+  const displayTitle = title.trim() || "(제목 없음)";
+  const displayArtist = artist.trim();
+  const tj = tjPro ? sanitizeKaraokeDigits(String(tjPro)) : "";
+
+  return (
+    <View style={styles.modalSongPreview}>
+      {uri ? (
+        <Image
+          source={{ uri }}
+          style={styles.modalSongThumb}
+          contentFit="cover"
+          accessibilityIgnoresInvertColors
+        />
+      ) : (
+        <View style={[styles.modalSongThumb, styles.thumbPlaceholder]}>
+          <Ionicons
+            name="musical-notes"
+            size={20}
+            color={DesignColors.textFaint}
+          />
+        </View>
+      )}
+      <View style={styles.modalSongText}>
+        <Text style={styles.modalSongTitle} numberOfLines={2}>
+          {displayTitle}
+        </Text>
+        {displayArtist ? (
+          <Text style={styles.modalSongArtist} numberOfLines={1}>
+            {displayArtist}
+          </Text>
+        ) : null}
+        {tj ? (
+          <View style={styles.modalTjPill}>
+            <Text style={styles.modalTjPillLabel}>TJ {tj}</Text>
+          </View>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
 function ChartRow({
   item,
   isInList,
@@ -244,8 +295,11 @@ export default function PopularChartScreen() {
   );
   const [pendingAdd, setPendingAdd] = useState<TjTopChartSongItem | null>(null);
   const [duplicateExisting, setDuplicateExisting] = useState<Song | null>(null);
+  const [addedSong, setAddedSong] = useState<{
+    song: Song;
+    imageUri?: string | null;
+  } | null>(null);
   const [savingAdd, setSavingAdd] = useState(false);
-  const [toastVisible, setToastVisible] = useState(false);
   const [mySongs, setMySongs] = useState<Song[]>([]);
   const [tjPeriod, setTjPeriod] = useState(() => {
     const cached = getTjChartSessionCache(chartStrType);
@@ -255,8 +309,6 @@ export default function PopularChartScreen() {
       end: cached?.searchEndDate ?? q.searchEndDate,
     };
   });
-  const toastOpacity = useRef(new Animated.Value(0)).current;
-
   const tjPeriodSubtitle = useMemo(
     () =>
       formatTjChartPeriodSubtitle(tjPeriod.start, tjPeriod.end, chartStrType),
@@ -284,24 +336,6 @@ export default function PopularChartScreen() {
       };
     }, []),
   );
-
-  const showAddedToast = useCallback(() => {
-    setToastVisible(true);
-    toastOpacity.setValue(0);
-    Animated.sequence([
-      Animated.timing(toastOpacity, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-      Animated.delay(2200),
-      Animated.timing(toastOpacity, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-    ]).start(() => setToastVisible(false));
-  }, [toastOpacity]);
 
   useEffect(() => {
     if (provider !== "tj") {
@@ -368,7 +402,10 @@ export default function PopularChartScreen() {
       setMySongs(next);
       logDebug(`[chart] TJ 차트에서 추가: ${song.title}`, "info");
       setPendingAdd(null);
-      showAddedToast();
+      setAddedSong({
+        song,
+        imageUri: pendingAdd.imgthumb_path,
+      });
     } catch (e) {
       logDebug(
         `[chart] 리스트 추가 실패: ${e instanceof Error ? e.message : String(e)}`,
@@ -377,17 +414,7 @@ export default function PopularChartScreen() {
     } finally {
       setSavingAdd(false);
     }
-  }, [pendingAdd, savingAdd, showAddedToast]);
-
-  const formatDuplicateLine = (song: Song) => {
-    const title = song.title.trim() || "(제목 없음)";
-    const artist = song.artist.trim();
-    const tj = sanitizeKaraokeDigits(song.tjNumber);
-    const parts = [title];
-    if (artist) parts.push(artist);
-    if (tj) parts.push(`TJ ${tj}`);
-    return parts.join(" · ");
-  };
+  }, [pendingAdd, savingAdd]);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + 12 }]}>
@@ -474,62 +501,55 @@ export default function PopularChartScreen() {
         animationType="fade"
         onRequestClose={() => !savingAdd && setPendingAdd(null)}
       >
-        <Pressable
-          style={styles.bubbleBackdrop}
-          onPress={() => !savingAdd && setPendingAdd(null)}
-          accessibilityLabel="닫기"
-        >
+        <View style={styles.modalRoot}>
           <Pressable
-            style={[styles.bubbleCard, styles.bubbleCardSurface]}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <ThemedText type="subtitle" style={styles.bubbleTitle}>
-              내 리스트에 추가
-            </ThemedText>
-            <ThemedText style={styles.bubbleQuestion}>
-              이 곡을 내 리스트에 추가하시겠습니까?
-            </ThemedText>
+            style={styles.modalBackdrop}
+            onPress={() => !savingAdd && setPendingAdd(null)}
+            accessibilityLabel="닫기"
+          />
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>내 리스트에 추가</Text>
+            <Text style={styles.modalMessage}>
+              이 곡을 내 노래 목록에 넣을까요?
+            </Text>
             {pendingAdd ? (
-              <ThemedText style={styles.bubbleSummary} numberOfLines={3}>
-                {pendingAdd.indexTitle}
-                {"\n"}
-                {pendingAdd.indexSong}
-                {"\n"}
-                TJ {pendingAdd.pro}
-              </ThemedText>
+              <ChartModalSongPreview
+                title={pendingAdd.indexTitle}
+                artist={pendingAdd.indexSong}
+                tjPro={pendingAdd.pro}
+                imageUri={pendingAdd.imgthumb_path}
+              />
             ) : null}
-            <View style={styles.bubbleActions}>
+            <View style={styles.modalActions}>
               <Pressable
                 onPress={() => !savingAdd && setPendingAdd(null)}
                 style={({ pressed }) => [
-                  styles.bubbleBtn,
-                  styles.bubbleBtnGhost,
-                  { opacity: pressed ? 0.75 : 1 },
+                  styles.modalCancelBtn,
+                  { opacity: pressed ? 0.65 : 1 },
                 ]}
                 disabled={savingAdd}
                 accessibilityRole="button"
                 accessibilityLabel="취소"
               >
-                <ThemedText style={{ fontWeight: "600" }}>취소</ThemedText>
+                <Text style={styles.modalCancelLabel}>취소</Text>
               </Pressable>
               <Pressable
                 onPress={() => void confirmAdd()}
                 style={({ pressed }) => [
-                  styles.bubbleBtn,
-                  styles.bubbleBtnPrimary,
+                  styles.modalConfirmBtn,
                   { opacity: savingAdd ? 0.55 : pressed ? 0.88 : 1 },
                 ]}
                 disabled={savingAdd}
                 accessibilityRole="button"
                 accessibilityLabel="추가"
               >
-                <ThemedText style={styles.bubbleBtnPrimaryLabel}>
+                <Text style={styles.modalConfirmLabel}>
                   {savingAdd ? "추가 중…" : "추가"}
-                </ThemedText>
+                </Text>
               </Pressable>
             </View>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
 
       <Modal
@@ -538,24 +558,36 @@ export default function PopularChartScreen() {
         animationType="fade"
         onRequestClose={() => setDuplicateExisting(null)}
       >
-        <Pressable
-          style={styles.bubbleBackdrop}
-          onPress={() => setDuplicateExisting(null)}
-          accessibilityLabel="닫기"
-        >
+        <View style={styles.modalRoot}>
           <Pressable
-            style={[styles.bubbleCard, styles.bubbleCardSurface]}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <ThemedText type="subtitle" style={styles.bubbleTitle}>
-              이미 내 리스트에 있는 곡이에요
-            </ThemedText>
+            style={styles.modalBackdrop}
+            onPress={() => setDuplicateExisting(null)}
+            accessibilityLabel="닫기"
+          />
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>이미 내 리스트에 있어요</Text>
+            <Text style={styles.modalMessage}>
+              아래 곡이 목록에 등록되어 있습니다.
+            </Text>
             {duplicateExisting ? (
-              <ThemedText style={styles.bubbleSummary} numberOfLines={3}>
-                {formatDuplicateLine(duplicateExisting)}
-              </ThemedText>
+              <ChartModalSongPreview
+                title={duplicateExisting.title}
+                artist={duplicateExisting.artist}
+                tjPro={duplicateExisting.tjNumber}
+              />
             ) : null}
-            <View style={styles.bubbleActions}>
+            <View style={styles.modalActions}>
+              <Pressable
+                onPress={() => setDuplicateExisting(null)}
+                style={({ pressed }) => [
+                  styles.modalCancelBtn,
+                  { opacity: pressed ? 0.65 : 1 },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="닫기"
+              >
+                <Text style={styles.modalCancelLabel}>닫기</Text>
+              </Pressable>
               <Pressable
                 onPress={() => {
                   const id = duplicateExisting?.id;
@@ -565,48 +597,77 @@ export default function PopularChartScreen() {
                   }
                 }}
                 style={({ pressed }) => [
-                  styles.bubbleBtn,
-                  styles.bubbleBtnPrimary,
+                  styles.modalConfirmBtn,
                   { opacity: pressed ? 0.88 : 1 },
                 ]}
                 accessibilityRole="button"
                 accessibilityLabel="내 곡으로 이동"
               >
-                <ThemedText style={styles.bubbleBtnPrimaryLabel}>
-                  내 곡으로 이동
-                </ThemedText>
+                <Text style={styles.modalConfirmLabel}>내 곡으로 이동</Text>
               </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={addedSong !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAddedSong(null)}
+      >
+        <View style={styles.modalRoot}>
+          <Pressable
+            style={styles.modalBackdrop}
+            onPress={() => setAddedSong(null)}
+            accessibilityLabel="닫기"
+          />
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>리스트에 추가됐어요</Text>
+            <Text style={styles.modalMessage}>
+              내 노래 목록에 저장했습니다.
+            </Text>
+            {addedSong ? (
+              <ChartModalSongPreview
+                title={addedSong.song.title}
+                artist={addedSong.song.artist}
+                tjPro={addedSong.song.tjNumber}
+                imageUri={addedSong.imageUri}
+              />
+            ) : null}
+            <View style={styles.modalActions}>
               <Pressable
-                onPress={() => setDuplicateExisting(null)}
+                onPress={() => setAddedSong(null)}
                 style={({ pressed }) => [
-                  styles.bubbleBtn,
-                  styles.bubbleBtnGhost,
-                  { opacity: pressed ? 0.75 : 1 },
+                  styles.modalCancelBtn,
+                  { opacity: pressed ? 0.65 : 1 },
                 ]}
                 accessibilityRole="button"
                 accessibilityLabel="닫기"
               >
-                <ThemedText style={{ fontWeight: "600" }}>닫기</ThemedText>
+                <Text style={styles.modalCancelLabel}>닫기</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  const id = addedSong?.song.id;
+                  setAddedSong(null);
+                  if (id) {
+                    router.push({ pathname: "/song/[id]", params: { id } });
+                  }
+                }}
+                style={({ pressed }) => [
+                  styles.modalConfirmBtn,
+                  { opacity: pressed ? 0.88 : 1 },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="해당 곡으로 이동"
+              >
+                <Text style={styles.modalConfirmLabel}>해당 곡으로 이동</Text>
               </Pressable>
             </View>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
-
-      {toastVisible ? (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.toast,
-            {
-              opacity: toastOpacity,
-              bottom: Math.max(insets.bottom, 12) + 56,
-            },
-          ]}
-        >
-          <ThemedText style={styles.toastText}>리스트에 추가됐어요</ThemedText>
-        </Animated.View>
-      ) : null}
     </View>
   );
 }
@@ -774,86 +835,114 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  bubbleBackdrop: {
+  modalRoot: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
+    paddingHorizontal: 28,
   },
-  bubbleCard: {
-    width: "100%",
-    maxWidth: 340,
-    borderRadius: 18,
-    paddingHorizontal: 18,
-    paddingTop: 20,
-    paddingBottom: 16,
-    position: "relative",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 10,
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: DesignColors.scrim,
   },
-  bubbleCardSurface: {
+  modalCard: {
     backgroundColor: DesignColors.bgCard,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: DesignColors.bgBorder,
-  },
-  bubbleTitle: {
-    marginBottom: 8,
-  },
-  bubbleQuestion: {
-    fontSize: 15,
-    lineHeight: 22,
-    marginBottom: 12,
-    color: DesignColors.textPrimary,
-  },
-  bubbleSummary: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 18,
-    color: DesignColors.textSecondary,
-  },
-  bubbleActions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 10,
-  },
-  bubbleBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    minWidth: 88,
-    alignItems: "center",
-  },
-  bubbleBtnGhost: {
     borderWidth: 1,
     borderColor: DesignColors.bgBorder,
-  },
-  bubbleBtnPrimary: {
-    backgroundColor: DesignColors.accent,
-  },
-  bubbleBtnPrimaryLabel: {
-    fontWeight: "700",
-    color: DesignColors.textOnAccent,
-  },
-  toast: {
-    position: "absolute",
-    alignSelf: "center",
+    borderRadius: 16,
     paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 24,
-    backgroundColor: DesignColors.toastBg,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 6,
+    paddingTop: 22,
+    paddingBottom: 16,
+    maxWidth: 400,
+    width: "100%",
+    alignSelf: "center",
   },
-  toastText: {
-    color: DesignColors.toastText,
-    fontSize: 14,
+  modalTitle: {
+    fontSize: 18,
     fontWeight: "600",
+    color: DesignColors.textPrimary,
+    letterSpacing: -0.3,
+    marginBottom: 8,
+  },
+  modalMessage: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: DesignColors.textSecondary,
+    marginBottom: 16,
+  },
+  modalSongPreview: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    backgroundColor: DesignColors.inputSurface,
+    borderWidth: 1,
+    borderColor: DesignColors.bgBorder,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 20,
+  },
+  modalSongThumb: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: DesignColors.bgCard,
+  },
+  modalSongText: {
+    flex: 1,
+    minWidth: 0,
+    gap: 4,
+  },
+  modalSongTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    lineHeight: 21,
+    color: DesignColors.textPrimary,
+    letterSpacing: -0.2,
+  },
+  modalSongArtist: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: DesignColors.textSecondary,
+  },
+  modalTjPill: {
+    alignSelf: "flex-start",
+    marginTop: 2,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: DesignColors.filterChipActiveBg,
+  },
+  modalTjPillLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: DesignColors.accent,
+    letterSpacing: 0.2,
+  },
+  modalActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 8,
+  },
+  modalCancelBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  modalCancelLabel: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: DesignColors.textMuted,
+  },
+  modalConfirmBtn: {
+    backgroundColor: DesignColors.accent,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    minWidth: 72,
+    alignItems: "center",
+  },
+  modalConfirmLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: DesignColors.textOnAccent,
   },
 });

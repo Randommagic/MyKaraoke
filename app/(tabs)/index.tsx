@@ -45,6 +45,7 @@ import { ThemedView } from "@/components/themed-view";
 import { YoutubeImportModal } from "@/components/youtube-import-modal";
 import { usePendingYoutubeShareUrl } from "@/components/youtube-share-intent-provider";
 import { logDebug } from "@/lib/debug-log-buffer";
+import { UI_STRINGS } from "@/lib/ui-strings";
 import {
   formatTranspose,
   GENDER_OPTIONS,
@@ -77,7 +78,7 @@ const READINESS_FILTER_CHIP_ORDER: SongReadiness[] = [
 ];
 
 const READINESS_FILTER_CHIPS: { value: ReadinessFilter; label: string }[] = [
-  { value: "all", label: "전체" },
+  { value: "all", label: UI_STRINGS.filter.all },
   ...READINESS_FILTER_CHIP_ORDER.map((value) => {
     const opt = SONG_READINESS_OPTIONS.find((o) => o.value === value)!;
     return { value, label: opt.label };
@@ -277,12 +278,16 @@ function SwipeableSongRow({
             size={20}
             color={DesignColors.swipeSungCancelText}
           />
-          <Text style={styles.swipeSungCancelActionLabel}>오늘 취소</Text>
+          <Text style={styles.swipeSungCancelActionLabel}>
+            {UI_STRINGS.swipe.sungTodayCancel}
+          </Text>
         </>
       ) : (
         <>
           <Ionicons name="mic" size={20} color={DesignColors.swipeSungText} />
-          <Text style={styles.swipeSungActionLabel}>오늘 불렀음</Text>
+          <Text style={styles.swipeSungActionLabel}>
+            {UI_STRINGS.swipe.sungToday}
+          </Text>
         </>
       )}
     </SwipeActionPanel>
@@ -816,6 +821,26 @@ export default function HomeScreen() {
                 color={DesignColors.accent}
               />
               <ThemedText type="defaultSemiBold">직접 추가</ThemedText>
+            </Pressable>
+            <View style={styles.fabBubbleDivider} />
+            <Pressable
+              onPress={() => {
+                setAddMenuOpen(false);
+                router.push("/chart");
+              }}
+              style={({ pressed }) => [
+                styles.fabBubbleRow,
+                { opacity: pressed ? 0.75 : 1 },
+              ]}
+              accessibilityRole="menuitem"
+              accessibilityLabel="인기 차트에서 추가"
+            >
+              <Ionicons
+                name="stats-chart"
+                size={22}
+                color={DesignColors.chartRank2}
+              />
+              <ThemedText type="defaultSemiBold">인기 차트에서 추가</ThemedText>
             </Pressable>
             <View style={styles.fabBubbleDivider} />
             <Pressable

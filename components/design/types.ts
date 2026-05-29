@@ -1,5 +1,5 @@
 export type ReadyStatus = "none" | "done" | "practice" | "try";
-export type DateRange = "today" | "week" | "month" | null;
+export type DateRange = "today" | "week" | "within15" | "month" | null;
 export type GenderBadgeKey = "male" | "female";
 
 export interface SongCardModel {

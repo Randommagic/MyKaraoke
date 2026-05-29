@@ -2,6 +2,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { Platform } from "react-native";
 
 import { logDebug } from "@/lib/debug-log-buffer";
+import { UI_STRINGS } from "@/lib/ui-strings";
 import { normalizeYoutubeUrlForStorage } from "@/lib/youtube-import";
 import { sanitizeSongYoutubeUrl } from "@/lib/song-youtube";
 
@@ -21,10 +22,10 @@ export type SongGenderKey = "male" | "female" | "unset";
 export type SongReadiness = "none" | "can_full" | "will_try" | "need_practice";
 
 export const SONG_READINESS_OPTIONS: { value: SongReadiness; label: string }[] = [
-  { value: "none", label: "미정" },
-  { value: "can_full", label: "완창" },
-  { value: "will_try", label: "시도" },
-  { value: "need_practice", label: "연습" },
+  { value: "none", label: UI_STRINGS.readiness.none },
+  { value: "can_full", label: UI_STRINGS.readiness.can_full },
+  { value: "will_try", label: UI_STRINGS.readiness.will_try },
+  { value: "need_practice", label: UI_STRINGS.readiness.need_practice },
 ];
 
 /** 상세 화면 슬라이더 순서: 미정 → 완창 → 연습 → 시도 */
@@ -39,9 +40,9 @@ export const READINESS_SLIDER_ORDER: SongReadiness[] = [
 export type SongImportSource = "manual" | "youtube" | "tj";
 
 export const SONG_IMPORT_SOURCE_LABELS: Record<SongImportSource, string> = {
-  manual: "직접 입력",
-  youtube: "YouTube에서",
-  tj: "TJ에서",
+  manual: UI_STRINGS.importSource.manual,
+  youtube: UI_STRINGS.importSource.youtube,
+  tj: UI_STRINGS.importSource.tj,
 };
 
 export type Song = {

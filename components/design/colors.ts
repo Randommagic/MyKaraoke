@@ -71,6 +71,8 @@ export const DesignColors = {
   dateToday: "#E8825A",
   dateWeekBg: "#FAECE7",
   dateWeekText: "#993C1D",
+  dateWithin15Bg: "#FFF0E8",
+  dateWithin15Text: "#A0705A",
   dateMonthBg: "#FFF0E8",
   dateMonthText: "#B08878",
 

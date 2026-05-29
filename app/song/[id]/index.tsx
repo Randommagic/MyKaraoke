@@ -30,6 +30,7 @@ import {
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { logDebug } from "@/lib/debug-log-buffer";
+import { UI_STRINGS } from "@/lib/ui-strings";
 import {
   formatTranspose,
   getPrimarySungDate,
@@ -473,7 +474,9 @@ export default function SongDetailScreen() {
                   sungToday ? { color: SongUi.accent } : null,
                 ]}
               >
-                {sungToday ? "오늘 부름 취소" : "오늘 불렀음"}
+                {sungToday
+                  ? UI_STRINGS.songDetail.sungTodayCancel
+                  : UI_STRINGS.songDetail.sungToday}
               </Text>
             </Pressable>
           </View>

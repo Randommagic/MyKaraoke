@@ -7,11 +7,12 @@ import {
   type SongGenderKey,
   type SongReadiness,
 } from "@/lib/songs-storage";
+import { UI_STRINGS } from "@/lib/ui-strings";
 
 export const GENDER_OPTIONS: { value: SongGenderKey; label: string }[] = [
-  { value: "unset", label: "미정" },
-  { value: "male", label: "남키" },
-  { value: "female", label: "여키" },
+  { value: "unset", label: UI_STRINGS.gender.unset },
+  { value: "male", label: UI_STRINGS.gender.male },
+  { value: "female", label: UI_STRINGS.gender.female },
 ];
 
 export const READINESS_VISUAL: Record<
@@ -26,7 +27,7 @@ export const READINESS_VISUAL: Record<
 
 export function formatTranspose(semitones: number): string {
   const t = Math.max(-12, Math.min(12, semitones));
-  if (t === 0) return "원키";
+  if (t === 0) return UI_STRINGS.key.original;
   if (t > 0) return `+${t}키`;
   return `${t}키`;
 }
@@ -87,22 +88,6 @@ export function daysSinceLastSung(ymd: string): number | null {
   return Math.floor((todayStart.getTime() - sungStart.getTime()) / 86400000);
 }
 
-export type LastSungRecencyLabel = "오늘" | "7일 이내" | "30일 이내";
-
-/** 곡 카드용: 가장 최근 부른 날 기준 */
-export function getLastSungRecencyLabel(
-  sungDates: string[],
-): LastSungRecencyLabel | null {
-  const primary = getPrimarySungDate(sungDates);
-  if (!primary) return null;
-  const diffDays = daysSinceLastSung(primary);
-  if (diffDays === null || diffDays < 0) return null;
-  if (diffDays === 0) return "오늘";
-  if (diffDays <= 7) return "7일 이내";
-  if (diffDays <= 30) return "30일 이내";
-  return null;
-}
-
 export function formatLastSungLine(ymd: string): string {
   const s = ymd.trim();
   if (!s) return "";
@@ -113,7 +98,7 @@ export function formatLastSungLine(ymd: string): string {
   if (diffDays === null) return `마지막: ${s}`;
 
   const dotted = `${m[1]}.${m[2]}.${m[3]}`;
-  if (diffDays === 0) return `오늘 (${dotted})`;
+  if (diffDays === 0) return `${UI_STRINGS.sungRecency.today} (${dotted})`;
   if (diffDays > 0) return `${diffDays}일 전 (${dotted})`;
   return `${-diffDays}일 후 (${dotted})`;
 }
