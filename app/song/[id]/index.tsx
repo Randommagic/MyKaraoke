@@ -8,16 +8,13 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useConfirm } from "@/components/design/confirm-dialog-context";
-import {
-  KeyboardAwareField,
-  KeyboardAwareScrollView,
-} from "@/components/design/keyboard-aware-scroll";
+import { KeyboardAwareScrollView } from "@/components/design/keyboard-aware-scroll";
+import { MemoField, TransposeStepper } from "@/components/song/SongForm";
 import {
   EditPillButton,
   FieldLabel,
@@ -32,7 +29,6 @@ import { ThemedView } from "@/components/themed-view";
 import { logDebug } from "@/lib/debug-log-buffer";
 import { UI_STRINGS } from "@/lib/ui-strings";
 import {
-  formatTranspose,
   getPrimarySungDate,
   isSungToday,
   localYmd,
@@ -40,11 +36,11 @@ import {
 import {
   clampSongMemo,
   loadSongs,
-  MAX_SONG_MEMO_LENGTH,
   saveSongs,
   toggleSungTodayInDates,
   type Song,
   type SongGenderKey,
+  type SongImportSource,
   type SongReadiness,
 } from "@/lib/songs-storage";
 import { normalizeYoutubeUrlForStorage } from "@/lib/youtube-import";
@@ -54,7 +50,6 @@ import {
   songHasYoutubeVideoLink,
   songUsesYoutubeKaraokeSearch,
 } from "@/lib/song-youtube";
-import type { SongImportSource } from "@/lib/songs-storage";
 
 function formatLastSungLabel(sungDates: string[]): string {
   const primary = getPrimarySungDate(sungDates);
@@ -402,53 +397,18 @@ export default function SongDetailScreen() {
           <GenderKeyRow value={genderKey} onChange={(v) => void saveGender(v)} />
 
           <FieldLabel>음정 (키 업/다운)</FieldLabel>
-          <View style={styles.transposeRow}>
-            <Pressable
-              onPress={() => void saveTranspose(transpose - 1)}
-              style={({ pressed }) => [
-                styles.stepBtn,
-                { opacity: pressed ? 0.85 : 1 },
-              ]}
-              accessibilityLabel="키 다운"
-            >
-              <Text style={styles.stepBtnText}>−</Text>
-            </Pressable>
-            <View style={styles.transposeCenter}>
-              <Text style={styles.transposeValue}>
-                {formatTranspose(transpose)}
-              </Text>
-              <Text style={styles.transposeHint}>반음 ±12까지</Text>
-            </View>
-            <Pressable
-              onPress={() => void saveTranspose(transpose + 1)}
-              style={({ pressed }) => [
-                styles.stepBtn,
-                { opacity: pressed ? 0.85 : 1 },
-              ]}
-              accessibilityLabel="키 업"
-            >
-              <Text style={styles.stepBtnText}>+</Text>
-            </Pressable>
-          </View>
+          <TransposeStepper
+            value={transpose}
+            onChange={(v) => void saveTranspose(v)}
+          />
 
           <View>
             <FieldLabel>메모</FieldLabel>
-            <KeyboardAwareField>
-              <TextInput
-                value={memo}
-                onChangeText={setMemo}
-                maxLength={MAX_SONG_MEMO_LENGTH}
-                onBlur={() => void flushMemoSave()}
-                placeholder="간단히 적어두기"
-                placeholderTextColor={SongUi.textFaint}
-                multiline
-                textAlignVertical="top"
-                style={styles.memoInput}
-              />
-            </KeyboardAwareField>
-            <Text style={styles.memoCounter}>
-              [{memo.length}/{MAX_SONG_MEMO_LENGTH}]
-            </Text>
+            <MemoField
+              value={memo}
+              onChangeText={setMemo}
+              onBlur={() => void flushMemoSave()}
+            />
           </View>
 
           <View style={styles.sungRow}>
@@ -570,59 +530,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 12,
     color: SongUi.textSecondary,
-  },
-  transposeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 18,
-  },
-  stepBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: SongUi.border,
-    backgroundColor: SongUi.cardBg,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stepBtnText: {
-    fontSize: 20,
-    color: SongUi.textSecondary,
-    fontWeight: "500",
-  },
-  transposeCenter: {
-    flex: 1,
-    alignItems: "center",
-  },
-  transposeValue: {
-    fontSize: 18,
-    fontWeight: "500",
-    color: SongUi.text,
-  },
-  transposeHint: {
-    marginTop: 2,
-    fontSize: 11,
-    color: SongUi.textMuted,
-  },
-  memoInput: {
-    borderWidth: 1,
-    borderColor: SongUi.border,
-    borderRadius: 12,
-    backgroundColor: SongUi.cardBg,
-    minHeight: 80,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 14,
-    color: SongUi.text,
-    marginBottom: 4,
-  },
-  memoCounter: {
-    alignSelf: "flex-end",
-    fontSize: 11,
-    color: SongUi.textFaint,
-    marginBottom: 20,
   },
   sungRow: {
     flexDirection: "row",

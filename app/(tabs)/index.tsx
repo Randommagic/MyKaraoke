@@ -1,64 +1,53 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import * as Haptics from "expo-haptics";
-import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Animated,
   Dimensions,
-  Modal,
-  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
 import DraggableFlatList, {
-  ScaleDecorator,
   type RenderItemParams,
 } from "react-native-draggable-flatlist";
 import { Swipeable } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { AppModal } from "@/components/design/AppModal";
+import { Button } from "@/components/design/Button";
 import { DesignColors } from "@/components/design/colors";
-import {
-  useConfirm,
-  type ConfirmFn,
-} from "@/components/design/confirm-dialog-context";
-import {
-  KeyboardAwareField,
-  KeyboardAwareScrollView,
-} from "@/components/design/keyboard-aware-scroll";
-import { mapStorageSongToCardModel } from "@/components/design/map-song";
+import { EdgeFadeScroller } from "@/components/design/EdgeFadeScroller";
+import { useConfirm } from "@/components/design/confirm-dialog-context";
+import { KeyboardAwareScrollView } from "@/components/design/keyboard-aware-scroll";
 import { ScreenTitle } from "@/components/design/ScreenTitle";
-import { SongCard } from "@/components/design/SongCard";
+import { Toast, useToast } from "@/components/design/Toast";
+import { AddFab } from "@/components/home/AddFab";
+import { SwipeableSongRow } from "@/components/home/SwipeableSongRow";
 import {
-  SWIPE_ACTION_WIDTH,
-  SwipeActionPanel,
-} from "@/components/design/SwipeActionPanel";
+  MemoField,
+  SongBasicFields,
+  TransposeStepper,
+} from "@/components/song/SongForm";
+import {
+  FieldLabel,
+  GenderKeyRow,
+  ReadinessChipRow,
+} from "@/components/song/song-screen-ui";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { YoutubeImportModal } from "@/components/youtube-import-modal";
 import { usePendingYoutubeShareUrl } from "@/components/youtube-share-intent-provider";
 import { logDebug } from "@/lib/debug-log-buffer";
 import { UI_STRINGS } from "@/lib/ui-strings";
-import {
-  formatTranspose,
-  GENDER_OPTIONS,
-  isSungToday,
-  localYmd,
-  READINESS_VISUAL,
-  sanitizeKaraokeDigits,
-} from "@/lib/song-form-helpers";
+import { localYmd, sanitizeKaraokeDigits } from "@/lib/song-form-helpers";
 import {
   clampSongMemo,
   createSongId,
   loadSongs,
-  MAX_SONG_MEMO_LENGTH,
   saveSongs,
   SONG_READINESS_OPTIONS,
   toggleSungTodayInDates,
@@ -85,7 +74,6 @@ const READINESS_FILTER_CHIPS: { value: ReadinessFilter; label: string }[] = [
   }),
 ];
 
-const FILTER_SCROLL_EDGE_THRESHOLD = 8;
 const FILTER_FADE_WIDTH = 36;
 
 function ReadinessFilterScroller({
@@ -97,277 +85,56 @@ function ReadinessFilterScroller({
   onSelectFilter: (value: ReadinessFilter) => void;
   counts: { all: number; by: Record<SongReadiness, number> };
 }) {
-  const [scrollX, setScrollX] = useState(0);
-  const [viewportWidth, setViewportWidth] = useState(0);
-  const [contentWidth, setContentWidth] = useState(0);
-
-  const canScroll = contentWidth > viewportWidth + FILTER_SCROLL_EDGE_THRESHOLD;
-  const showLeftFade = canScroll && scrollX > FILTER_SCROLL_EDGE_THRESHOLD;
-  const showRightFade =
-    canScroll &&
-    scrollX + viewportWidth < contentWidth - FILTER_SCROLL_EDGE_THRESHOLD;
-
   return (
-    <View style={styles.readinessFilterScroller}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        scrollEventThrottle={16}
-        onScroll={(e) => setScrollX(e.nativeEvent.contentOffset.x)}
-        onLayout={(e) => setViewportWidth(e.nativeEvent.layout.width)}
-        onContentSizeChange={(w) => setContentWidth(w)}
-        style={styles.readinessFilterScroll}
-        contentContainerStyle={styles.readinessFilterScrollContent}
-      >
-        {READINESS_FILTER_CHIPS.map((chip) => {
-          const selected = readinessFilter === chip.value;
-          const isAll = chip.value === "all";
-          const count = isAll
-            ? counts.all
-            : counts.by[chip.value as SongReadiness];
-          return (
-            <Pressable
-              key={chip.value}
-              onPress={() => onSelectFilter(chip.value)}
-              style={({ pressed }) => [
-                styles.readinessFilterTab,
-                selected && styles.readinessFilterTabActive,
-                { opacity: pressed ? 0.85 : 1 },
+    <EdgeFadeScroller
+      fadeWidth={FILTER_FADE_WIDTH}
+      showChevron
+      style={styles.readinessFilterScroller}
+      contentContainerStyle={styles.readinessFilterScrollContent}
+    >
+      {READINESS_FILTER_CHIPS.map((chip) => {
+        const selected = readinessFilter === chip.value;
+        const isAll = chip.value === "all";
+        const count = isAll
+          ? counts.all
+          : counts.by[chip.value as SongReadiness];
+        return (
+          <Pressable
+            key={chip.value}
+            onPress={() => onSelectFilter(chip.value)}
+            style={({ pressed }) => [
+              styles.readinessFilterTab,
+              selected && styles.readinessFilterTabActive,
+              { opacity: pressed ? 0.85 : 1 },
+            ]}
+          >
+            <Text
+              style={[
+                styles.readinessFilterTabLabel,
+                selected && styles.readinessFilterTabLabelActive,
+              ]}
+            >
+              {chip.label}
+            </Text>
+            <View
+              style={[
+                styles.readinessFilterCountBadge,
+                selected && styles.readinessFilterCountBadgeActive,
               ]}
             >
               <Text
                 style={[
-                  styles.readinessFilterTabLabel,
-                  selected && styles.readinessFilterTabLabelActive,
+                  styles.readinessFilterCountText,
+                  selected && styles.readinessFilterCountTextActive,
                 ]}
               >
-                {chip.label}
+                {count}
               </Text>
-              <View
-                style={[
-                  styles.readinessFilterCountBadge,
-                  selected && styles.readinessFilterCountBadgeActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.readinessFilterCountText,
-                    selected && styles.readinessFilterCountTextActive,
-                  ]}
-                >
-                  {count}
-                </Text>
-              </View>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-      {showLeftFade ? (
-        <>
-          <LinearGradient
-            colors={[DesignColors.bg, "transparent"]}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            style={[styles.readinessFilterFade, styles.readinessFilterFadeLeft]}
-            pointerEvents="none"
-          />
-          <Text
-            style={[
-              styles.readinessFilterChevron,
-              styles.readinessFilterChevronLeft,
-              { color: DesignColors.textMuted },
-            ]}
-            pointerEvents="none"
-          >
-            ‹
-          </Text>
-        </>
-      ) : null}
-      {showRightFade ? (
-        <>
-          <LinearGradient
-            colors={["transparent", DesignColors.bg]}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            style={[
-              styles.readinessFilterFade,
-              styles.readinessFilterFadeRight,
-            ]}
-            pointerEvents="none"
-          />
-          <Text
-            style={[
-              styles.readinessFilterChevron,
-              styles.readinessFilterChevronRight,
-              { color: DesignColors.textMuted },
-            ]}
-            pointerEvents="none"
-          >
-            ›
-          </Text>
-        </>
-      ) : null}
-    </View>
-  );
-}
-
-function SwipeableSongRow({
-  item,
-  iconMuted,
-  onOpenDetail,
-  onToggleSungToday,
-  onRequestDelete,
-  confirm,
-  registerSwipeRef,
-  closeOtherSwipes,
-  drag,
-  isActive,
-  swipeEnabled,
-  dragReorderEnabled,
-  onDisabledDragAttempt,
-}: {
-  item: Song;
-  iconMuted: string;
-  onOpenDetail: () => void;
-  onToggleSungToday: () => void;
-  onRequestDelete: () => void;
-  confirm: ConfirmFn;
-  registerSwipeRef: (id: string, ref: Swipeable | null) => void;
-  closeOtherSwipes: (id: string) => void;
-  drag: () => void;
-  isActive: boolean;
-  swipeEnabled: boolean;
-  dragReorderEnabled: boolean;
-  onDisabledDragAttempt: () => void;
-}) {
-  const swipeRef = useRef<Swipeable | null>(null);
-  const sungToday = isSungToday(item.sungDates);
-
-  const renderLeftActions = (
-    progress: Animated.AnimatedInterpolation<number>,
-  ) => (
-    <SwipeActionPanel
-      backgroundColor={DesignColors.swipeDeleteBg}
-      progress={progress}
-      cardEdge="right"
-    >
-      <Ionicons
-        name="trash-outline"
-        size={20}
-        color={DesignColors.swipeDeleteText}
-      />
-      <Text style={styles.swipeDeleteActionLabel}>삭제</Text>
-    </SwipeActionPanel>
-  );
-
-  const renderRightActions = (
-    progress: Animated.AnimatedInterpolation<number>,
-  ) => (
-    <SwipeActionPanel
-      backgroundColor={
-        sungToday ? DesignColors.swipeSungCancelBg : DesignColors.swipeSungBg
-      }
-      progress={progress}
-      cardEdge="left"
-      contentStyle={styles.swipeSungActionPanel}
-    >
-      {sungToday ? (
-        <>
-          <Ionicons
-            name="arrow-undo"
-            size={20}
-            color={DesignColors.swipeSungCancelText}
-          />
-          <Text style={styles.swipeSungCancelActionLabel}>
-            {UI_STRINGS.swipe.sungTodayCancel}
-          </Text>
-        </>
-      ) : (
-        <>
-          <Ionicons name="mic" size={20} color={DesignColors.swipeSungText} />
-          <Text style={styles.swipeSungActionLabel}>
-            {UI_STRINGS.swipe.sungToday}
-          </Text>
-        </>
-      )}
-    </SwipeActionPanel>
-  );
-
-  return (
-    <ScaleDecorator activeScale={1.02}>
-      <View style={[styles.songCardRow, isActive ? { opacity: 0.92 } : null]}>
-        <Pressable
-          onLongPress={() => {
-            if (dragReorderEnabled) {
-              if (Platform.OS !== "web") {
-                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              }
-              drag();
-            } else {
-              onDisabledDragAttempt();
-            }
-          }}
-          delayLongPress={220}
-          disabled={isActive}
-          hitSlop={8}
-          style={({ pressed }) => [
-            styles.dragHandle,
-            {
-              opacity: dragReorderEnabled ? (pressed ? 0.65 : 1) : 0.3,
-            },
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel={
-            dragReorderEnabled
-              ? "길게 눌러 순서 변경"
-              : "전체 보기에서만 순서 변경 가능"
-          }
-        >
-          <Ionicons name="reorder-three" size={22} color={iconMuted} />
-        </Pressable>
-        <View style={styles.songCardWrap}>
-          <Swipeable
-            ref={(r) => {
-              swipeRef.current = r;
-              registerSwipeRef(item.id, r);
-            }}
-            enabled={swipeEnabled && !isActive}
-            renderLeftActions={renderLeftActions}
-            renderRightActions={renderRightActions}
-            onSwipeableWillOpen={() => closeOtherSwipes(item.id)}
-            onSwipeableOpen={(direction) => {
-              swipeRef.current?.close();
-              if (direction === "left") {
-                confirm({
-                  title: "삭제하시겠습니까?",
-                  confirmLabel: "삭제",
-                  destructive: true,
-                  onConfirm: onRequestDelete,
-                });
-                return;
-              }
-              if (direction !== "right") return;
-              if (Platform.OS !== "web") {
-                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              }
-              onToggleSungToday();
-            }}
-            friction={2}
-            overshootLeft={false}
-            overshootRight={false}
-            leftThreshold={SWIPE_ACTION_WIDTH * 0.45}
-            rightThreshold={SWIPE_ACTION_WIDTH * 0.45}
-            enableTrackpadTwoFingerGesture
-            containerStyle={styles.swipeCardContainer}
-          >
-            <SongCard
-              model={mapStorageSongToCardModel(item)}
-              onPress={onOpenDetail}
-            />
-          </Swipeable>
-        </View>
-      </View>
-    </ScaleDecorator>
+            </View>
+          </Pressable>
+        );
+      })}
+    </EdgeFadeScroller>
   );
 }
 
@@ -400,9 +167,7 @@ export default function HomeScreen() {
   const { pendingUrl: pendingYoutubeShareUrl, consumePendingUrl } =
     usePendingYoutubeShareUrl();
   const [addMenuOpen, setAddMenuOpen] = useState(false);
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastMessage, setToastMessage] = useState("");
-  const toastOpacity = useRef(new Animated.Value(0)).current;
+  const toast = useToast();
 
   const modalScrollMaxHeight = useMemo(
     () => Math.min(Dimensions.get("window").height * 0.52, 480),
@@ -541,35 +306,9 @@ export default function HomeScreen() {
     songs,
   ]);
 
-  const bumpTranspose = useCallback((delta: number) => {
-    setDraftTranspose((v) => Math.max(-12, Math.min(12, v + delta)));
-  }, []);
-
-  const showToast = useCallback(
-    (message: string) => {
-      setToastMessage(message);
-      setToastVisible(true);
-      toastOpacity.setValue(0);
-      Animated.sequence([
-        Animated.timing(toastOpacity, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.delay(2200),
-        Animated.timing(toastOpacity, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start(() => setToastVisible(false));
-    },
-    [toastOpacity],
-  );
-
   const showReorderDisabledToast = useCallback(() => {
-    showToast("순서 변경은 전체 보기에서만 가능해요");
-  }, [showToast]);
+    toast.show("순서 변경은 전체 보기에서만 가능해요");
+  }, [toast]);
 
   const swipeRowRefs = useRef<Map<string, Swipeable>>(new Map());
 
@@ -627,15 +366,6 @@ export default function HomeScreen() {
       }
     },
     [persist],
-  );
-
-  const inputSurfaceStyle = useMemo(
-    () => ({
-      borderColor: DesignColors.bgBorder,
-      color: DesignColors.textPrimary,
-      backgroundColor: DesignColors.inputSurface,
-    }),
-    [],
   );
 
   const filteredSongs = useMemo(() => {
@@ -789,316 +519,71 @@ export default function HomeScreen() {
         )}
       />
 
-      {addMenuOpen ? (
-        <Pressable
-          style={styles.fabScrim}
-          onPress={() => setAddMenuOpen(false)}
-          accessibilityLabel="메뉴 닫기"
-        />
-      ) : null}
+      <AddFab
+        open={addMenuOpen}
+        onOpenChange={setAddMenuOpen}
+        onAddManual={openCreateModal}
+        onAddFromChart={() => router.push("/chart")}
+        onAddFromYoutube={() => setYoutubeImportVisible(true)}
+      />
 
-      <View
-        style={[styles.fabStack, { bottom: Math.max(insets.bottom, 10) + 8 }]}
-        pointerEvents="box-none"
-      >
-        {addMenuOpen ? (
-          <View style={styles.fabBubble} accessibilityRole="menu">
-            <Pressable
-              onPress={() => {
-                setAddMenuOpen(false);
-                openCreateModal();
-              }}
-              style={({ pressed }) => [
-                styles.fabBubbleRow,
-                { opacity: pressed ? 0.75 : 1 },
-              ]}
-              accessibilityRole="menuitem"
-              accessibilityLabel="직접 추가"
-            >
-              <Ionicons
-                name="create-outline"
-                size={22}
-                color={DesignColors.accent}
-              />
-              <ThemedText type="defaultSemiBold">직접 추가</ThemedText>
-            </Pressable>
-            <View style={styles.fabBubbleDivider} />
-            <Pressable
-              onPress={() => {
-                setAddMenuOpen(false);
-                router.push("/chart");
-              }}
-              style={({ pressed }) => [
-                styles.fabBubbleRow,
-                { opacity: pressed ? 0.75 : 1 },
-              ]}
-              accessibilityRole="menuitem"
-              accessibilityLabel="인기 차트에서 추가"
-            >
-              <Ionicons
-                name="stats-chart"
-                size={22}
-                color={DesignColors.chartRank2}
-              />
-              <ThemedText type="defaultSemiBold">인기 차트에서 추가</ThemedText>
-            </Pressable>
-            <View style={styles.fabBubbleDivider} />
-            <Pressable
-              onPress={() => {
-                setAddMenuOpen(false);
-                setYoutubeImportVisible(true);
-              }}
-              style={({ pressed }) => [
-                styles.fabBubbleRow,
-                { opacity: pressed ? 0.75 : 1 },
-              ]}
-              accessibilityRole="menuitem"
-              accessibilityLabel="YouTube에서 추가"
-            >
-              <Ionicons name="logo-youtube" size={22} color="#FF0000" />
-              <ThemedText type="defaultSemiBold">YouTube에서 추가</ThemedText>
-            </Pressable>
-          </View>
-        ) : null}
-
-        <Pressable
-          onPress={() => setAddMenuOpen((o) => !o)}
-          style={({ pressed }) => [
-            styles.fabMain,
-            {
-              backgroundColor: DesignColors.accent,
-              opacity: pressed ? 0.88 : 1,
-            },
-          ]}
-          accessibilityLabel="곡 추가 메뉴 열기"
-          accessibilityState={{ expanded: addMenuOpen }}
-        >
-          <Ionicons name="add" size={34} color={DesignColors.textOnAccent} />
-        </Pressable>
-      </View>
-
-      <Modal
+      <AppModal
         visible={modalSongId === CREATE_MODAL_ID}
-        animationType="fade"
-        transparent
-        onRequestClose={closeModal}
+        onClose={closeModal}
+        rootStyle={styles.createModalRoot}
+        cardStyle={styles.createModalCard}
       >
-        <View style={styles.modalRoot}>
-          <Pressable style={styles.modalBackdrop} onPress={closeModal} />
-          <View style={styles.modalCard}>
-            <ThemedText type="subtitle" style={styles.modalTitle}>
-              새 곡 추가
-            </ThemedText>
+        <ThemedText type="subtitle" style={styles.modalTitle}>
+          새 곡 추가
+        </ThemedText>
 
-            <KeyboardAwareScrollView
+        <KeyboardAwareScrollView
               fill={false}
               style={{ maxHeight: modalScrollMaxHeight }}
               extraBottomPadding={16}
               footer={
                 <View style={styles.modalActions}>
                   <View style={{ flex: 1 }} />
-                  <Pressable
+                  <Button
+                    label="취소"
+                    variant="text"
                     onPress={closeModal}
-                    style={({ pressed }) => [
-                      styles.textBtn,
-                      { opacity: pressed ? 0.6 : 1 },
-                    ]}
-                  >
-                    <ThemedText style={styles.modalCancelLabel}>
-                      취소
-                    </ThemedText>
-                  </Pressable>
-                  <Pressable
-                    onPress={handleSaveModal}
-                    style={({ pressed }) => [
-                      styles.primaryBtn,
-                      { opacity: pressed ? 0.85 : 1 },
-                    ]}
-                  >
-                    <ThemedText style={styles.primaryBtnLabel}>저장</ThemedText>
-                  </Pressable>
+                  />
+                  <Button label="저장" onPress={() => void handleSaveModal()} />
                 </View>
               }
             >
-              <ThemedText style={styles.fieldLabel}>노래 제목</ThemedText>
-              <KeyboardAwareField>
-                <TextInput
-                  value={draftTitle}
-                  onChangeText={setDraftTitle}
-                  placeholder="제목"
-                  placeholderTextColor={DesignColors.textMuted}
-                  style={[styles.modalInput, inputSurfaceStyle]}
-                  autoFocus
-                />
-              </KeyboardAwareField>
+              <SongBasicFields
+                title={draftTitle}
+                onTitleChange={setDraftTitle}
+                artist={draftArtist}
+                onArtistChange={setDraftArtist}
+                tjNumber={draftTjNumber}
+                onTjNumberChange={setDraftTjNumber}
+                kyNumber={draftKyNumber}
+                onKyNumberChange={setDraftKyNumber}
+                autoFocusTitle
+              />
 
-              <ThemedText style={styles.fieldLabel}>가수</ThemedText>
-              <KeyboardAwareField>
-                <TextInput
-                  value={draftArtist}
-                  onChangeText={setDraftArtist}
-                  placeholder="가수명"
-                  placeholderTextColor={DesignColors.textMuted}
-                  style={[styles.modalInput, inputSurfaceStyle]}
-                />
-              </KeyboardAwareField>
+              <FieldLabel>남/여 키</FieldLabel>
+              <GenderKeyRow value={draftGender} onChange={setDraftGender} />
 
-              <ThemedText style={styles.fieldLabel}>곡 번호</ThemedText>
-              <View style={styles.modalNumberRow}>
-                <View style={styles.modalNumberCol}>
-                  <ThemedText style={styles.modalNumberBrand}>태진</ThemedText>
-                  <KeyboardAwareField>
-                    <TextInput
-                      value={draftTjNumber}
-                      onChangeText={(text) =>
-                        setDraftTjNumber(sanitizeKaraokeDigits(text))
-                      }
-                      placeholder="번호"
-                      placeholderTextColor={DesignColors.textMuted}
-                      keyboardType="number-pad"
-                      maxLength={6}
-                      style={[
-                        styles.modalInput,
-                        inputSurfaceStyle,
-                        styles.modalNumberInput,
-                      ]}
-                    />
-                  </KeyboardAwareField>
-                </View>
-                <View style={styles.modalNumberCol}>
-                  <ThemedText style={styles.modalNumberBrand}>금영</ThemedText>
-                  <KeyboardAwareField>
-                    <TextInput
-                      value={draftKyNumber}
-                      onChangeText={(text) =>
-                        setDraftKyNumber(sanitizeKaraokeDigits(text))
-                      }
-                      placeholder="번호"
-                      placeholderTextColor={DesignColors.textMuted}
-                      keyboardType="number-pad"
-                      maxLength={6}
-                      style={[
-                        styles.modalInput,
-                        inputSurfaceStyle,
-                        styles.modalNumberInput,
-                      ]}
-                    />
-                  </KeyboardAwareField>
-                </View>
-              </View>
+              <FieldLabel>준비도</FieldLabel>
+              <ReadinessChipRow
+                value={draftReadiness}
+                onChange={setDraftReadiness}
+              />
 
-              <ThemedText style={styles.fieldLabel}>남/여 키</ThemedText>
-              <View style={styles.segmentRow}>
-                {GENDER_OPTIONS.map((opt) => {
-                  const selected = draftGender === opt.value;
-                  return (
-                    <Pressable
-                      key={opt.value}
-                      onPress={() => setDraftGender(opt.value)}
-                      style={[
-                        styles.segment,
-                        selected ? styles.segmentSelected : null,
-                      ]}
-                    >
-                      <ThemedText
-                        style={
-                          selected
-                            ? styles.segmentLabelSelected
-                            : styles.segmentLabel
-                        }
-                      >
-                        {opt.label}
-                      </ThemedText>
-                    </Pressable>
-                  );
-                })}
-              </View>
+              <FieldLabel>음정 (키 업/다운)</FieldLabel>
+              <TransposeStepper
+                value={draftTranspose}
+                onChange={setDraftTranspose}
+              />
 
-              <ThemedText style={styles.fieldLabel}>준비도</ThemedText>
-              <View style={styles.segmentRow}>
-                {SONG_READINESS_OPTIONS.map((opt) => {
-                  const selected = draftReadiness === opt.value;
-                  const rv = READINESS_VISUAL[opt.value];
-                  return (
-                    <Pressable
-                      key={opt.value}
-                      onPress={() => setDraftReadiness(opt.value)}
-                      style={[
-                        styles.segment,
-                        styles.modalReadinessSegment,
-                        selected ? styles.segmentSelected : null,
-                      ]}
-                    >
-                      <Ionicons name={rv.icon} size={20} color={rv.color} />
-                      <ThemedText
-                        style={[
-                          styles.segmentReadinessLabel,
-                          selected
-                            ? styles.segmentLabelSelected
-                            : styles.segmentLabel,
-                        ]}
-                        numberOfLines={2}
-                      >
-                        {opt.label}
-                      </ThemedText>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              <ThemedText style={styles.fieldLabel}>
-                음정 (키 업/다운)
-              </ThemedText>
-              <View style={styles.transposeRow}>
-                <Pressable
-                  onPress={() => bumpTranspose(-1)}
-                  style={styles.stepBtn}
-                >
-                  <ThemedText type="defaultSemiBold">−</ThemedText>
-                </Pressable>
-                <View style={styles.transposeValue}>
-                  <ThemedText
-                    type="defaultSemiBold"
-                    style={{ textAlign: "center" }}
-                  >
-                    {formatTranspose(draftTranspose)}
-                  </ThemedText>
-                  <ThemedText style={styles.transposeHint}>
-                    반음 ±12까지
-                  </ThemedText>
-                </View>
-                <Pressable
-                  onPress={() => bumpTranspose(1)}
-                  style={styles.stepBtn}
-                >
-                  <ThemedText type="defaultSemiBold">+</ThemedText>
-                </Pressable>
-              </View>
-
-              <ThemedText style={styles.fieldLabel}>메모</ThemedText>
-              <KeyboardAwareField>
-                <TextInput
-                  value={draftMemo}
-                  onChangeText={setDraftMemo}
-                  maxLength={MAX_SONG_MEMO_LENGTH}
-                  placeholder="간단히 적어두기"
-                  placeholderTextColor={DesignColors.textMuted}
-                  multiline
-                  textAlignVertical="top"
-                  style={[
-                    styles.modalInput,
-                    styles.modalMemoInput,
-                    inputSurfaceStyle,
-                  ]}
-                />
-              </KeyboardAwareField>
-              <ThemedText style={styles.memoCounter}>
-                [{draftMemo.length}/{MAX_SONG_MEMO_LENGTH}]
-              </ThemedText>
+              <FieldLabel>메모</FieldLabel>
+              <MemoField value={draftMemo} onChangeText={setDraftMemo} />
             </KeyboardAwareScrollView>
-          </View>
-        </View>
-      </Modal>
+      </AppModal>
 
       <YoutubeImportModal
         visible={youtubeImportVisible}
@@ -1108,21 +593,7 @@ export default function HomeScreen() {
         initialUrl={youtubeImportInitialUrl}
       />
 
-      {toastVisible ? (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.toast,
-            {
-              opacity: toastOpacity,
-              bottom: Math.max(insets.bottom, 12) + 56,
-              backgroundColor: DesignColors.toastBg,
-            },
-          ]}
-        >
-          <ThemedText style={styles.toastText}>{toastMessage}</ThemedText>
-        </Animated.View>
-      ) : null}
+      <Toast controller={toast} offset={56} />
     </ThemedView>
   );
 }
@@ -1193,96 +664,13 @@ const styles = StyleSheet.create({
   listFlex: {
     flex: 1,
   },
-  fabScrim: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.22)",
-    zIndex: 40,
-  },
-  fabStack: {
-    position: "absolute",
-    right: 20,
-    zIndex: 50,
-    alignItems: "flex-end",
-    gap: 12,
-  },
-  fabBubble: {
-    minWidth: 208,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: DesignColors.bgBorder,
-    backgroundColor: DesignColors.bgCard,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  fabBubbleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-  },
-  fabBubbleDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: DesignColors.bgBorder,
-    opacity: 0.85,
-  },
-  fabMain: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 3,
-    borderColor: DesignColors.bg,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.22,
-    shadowRadius: 5,
-    elevation: 8,
-  },
   readinessFilterScroller: {
-    position: "relative",
     marginBottom: 0,
-  },
-  readinessFilterScroll: {
-    flexGrow: 0,
   },
   readinessFilterScrollContent: {
     flexDirection: "row",
     alignItems: "flex-end",
     paddingRight: 4,
-  },
-  readinessFilterFade: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    width: FILTER_FADE_WIDTH,
-    zIndex: 1,
-  },
-  readinessFilterFadeLeft: {
-    left: 0,
-  },
-  readinessFilterFadeRight: {
-    right: 0,
-  },
-  readinessFilterChevron: {
-    position: "absolute",
-    top: "50%",
-    marginTop: -11,
-    fontSize: 22,
-    lineHeight: 22,
-    fontWeight: "600",
-    zIndex: 2,
-  },
-  readinessFilterChevronLeft: {
-    left: 6,
-  },
-  readinessFilterChevronRight: {
-    right: 6,
   },
   readinessFilterTab: {
     flexDirection: "row",
@@ -1332,191 +720,16 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
     flexGrow: 1,
   },
-  swipeCardContainer: {
-    flex: 1,
-    width: "100%",
-  },
-  songCardRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    width: "100%",
-    marginBottom: 7,
-  },
-  dragHandle: {
-    justifyContent: "center",
-    alignItems: "center",
-    paddingRight: 6,
-    paddingLeft: 2,
-    paddingTop: 14,
-  },
-  songCardWrap: {
-    flex: 1,
-    minWidth: 0,
-  },
-  swipeDeleteActionLabel: {
-    color: DesignColors.swipeDeleteText,
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  swipeSungActionPanel: {
-    flexDirection: "column",
-    gap: 2,
-    paddingHorizontal: 4,
-    paddingLeft: 4,
-    paddingRight: 10,
-  },
-  swipeSungActionLabel: {
-    color: DesignColors.swipeSungText,
-    fontSize: 10,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  swipeSungCancelActionLabel: {
-    color: DesignColors.swipeSungCancelText,
-    fontSize: 10,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  toast: {
-    position: "absolute",
-    alignSelf: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 6,
-    zIndex: 60,
-  },
-  toastText: {
-    color: DesignColors.toastText,
-    fontSize: 14,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  modalRoot: {
-    flex: 1,
-    justifyContent: "center",
+  createModalRoot: {
     paddingHorizontal: 20,
   },
-  modalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: DesignColors.scrim,
-  },
-  modalCard: {
-    borderRadius: 16,
-    padding: 20,
+  createModalCard: {
     maxWidth: 480,
-    width: "100%",
-    alignSelf: "center",
     maxHeight: "92%",
-    backgroundColor: DesignColors.bgCard,
+    paddingVertical: 20,
   },
   modalTitle: {
     marginBottom: 16,
-  },
-  fieldLabel: {
-    marginBottom: 6,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  modalInput: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    marginBottom: 14,
-  },
-  modalNumberRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 14,
-  },
-  modalNumberCol: {
-    flex: 1,
-  },
-  modalNumberBrand: {
-    fontSize: 13,
-    fontWeight: "600",
-    marginBottom: 6,
-  },
-  modalNumberInput: {
-    marginBottom: 0,
-  },
-  modalMemoInput: {
-    minHeight: 88,
-    paddingTop: 12,
-    marginBottom: 4,
-  },
-  memoCounter: {
-    alignSelf: "flex-end",
-    fontSize: 11,
-    color: DesignColors.textFaint,
-    marginBottom: 14,
-  },
-  segmentRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 14,
-  },
-  segment: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: "center",
-    borderColor: DesignColors.bgBorder,
-  },
-  segmentSelected: {
-    borderColor: DesignColors.accent,
-    backgroundColor: `${DesignColors.accent}22`,
-  },
-  segmentLabel: {
-    fontWeight: "500",
-    color: DesignColors.textPrimary,
-  },
-  segmentLabelSelected: {
-    fontWeight: "700",
-    color: DesignColors.accent,
-  },
-  segmentReadinessLabel: {
-    marginTop: 6,
-    fontSize: 11,
-    textAlign: "center",
-  },
-  modalReadinessSegment: {
-    justifyContent: "center",
-    minHeight: 76,
-    paddingVertical: 8,
-  },
-  transposeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 20,
-  },
-  stepBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DesignColors.bgBorder,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  transposeValue: {
-    flex: 1,
-  },
-  transposeHint: {
-    color: DesignColors.textMuted,
-    fontSize: 12,
-    textAlign: "center",
-  },
-  modalCancelLabel: {
-    color: DesignColors.textMuted,
   },
   modalActions: {
     flexDirection: "row",
@@ -1524,20 +737,5 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 8,
     paddingTop: 4,
-  },
-  textBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-  },
-  primaryBtn: {
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    backgroundColor: DesignColors.accent,
-  },
-  primaryBtnLabel: {
-    color: DesignColors.textOnAccent,
-    fontWeight: "700",
-    fontSize: 16,
   },
 });

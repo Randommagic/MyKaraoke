@@ -1,16 +1,11 @@
 import * as Clipboard from "expo-clipboard";
-import { useCallback, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Animated,
-  Pressable,
-  StyleSheet,
-  View,
-} from "react-native";
+import { useCallback, useState } from "react";
+import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DesignColors } from "@/components/design/colors";
 import { useConfirm } from "@/components/design/confirm-dialog-context";
+import { Toast, useToast } from "@/components/design/Toast";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { logDebug } from "@/lib/debug-log-buffer";
@@ -27,31 +22,8 @@ export default function BackupScreen() {
 
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastMessage, setToastMessage] = useState("");
-  const toastOpacity = useRef(new Animated.Value(0)).current;
-
-  const showToast = useCallback(
-    (message: string) => {
-      setToastMessage(message);
-      setToastVisible(true);
-      toastOpacity.setValue(0);
-      Animated.sequence([
-        Animated.timing(toastOpacity, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.delay(2200),
-        Animated.timing(toastOpacity, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start(() => setToastVisible(false));
-    },
-    [toastOpacity],
-  );
+  const toast = useToast();
+  const showToast = toast.show;
 
   const onImport = useCallback(() => {
     if (importing || exporting) return;
@@ -181,20 +153,7 @@ export default function BackupScreen() {
         </View>
       </View>
 
-      {toastVisible ? (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.toast,
-            {
-              opacity: toastOpacity,
-              bottom: Math.max(insets.bottom, 12) + 16,
-            },
-          ]}
-        >
-          <ThemedText style={styles.toastText}>{toastMessage}</ThemedText>
-        </Animated.View>
-      ) : null}
+      <Toast controller={toast} />
     </ThemedView>
   );
 }
@@ -248,23 +207,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     color: DesignColors.textSecondary,
-  },
-  toast: {
-    position: "absolute",
-    alignSelf: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 24,
-    backgroundColor: DesignColors.toastBg,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 6,
-  },
-  toastText: {
-    color: DesignColors.toastText,
-    fontSize: 14,
-    fontWeight: "600",
   },
 });

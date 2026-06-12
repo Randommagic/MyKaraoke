@@ -15,6 +15,7 @@ import {
   KeyboardAwareField,
   KeyboardAwareScrollView,
 } from "@/components/design/keyboard-aware-scroll";
+import { SongBasicFields } from "@/components/song/SongForm";
 import {
   SongScreenHeader,
   SongUi,
@@ -52,8 +53,6 @@ export default function SongEditScreen() {
   /** 로드 시점에 저장돼 있던 URL */
   const [savedYoutubeUrl, setSavedYoutubeUrl] = useState("");
   const [youtubeUnlinked, setYoutubeUnlinked] = useState(false);
-
-  const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const youtubeLinkLocked = isYoutubeImportLinkLocked(
     importSource,
@@ -102,15 +101,6 @@ export default function SongEditScreen() {
   useEffect(() => {
     void reload();
   }, [reload]);
-
-  const inputStyle = useCallback(
-    (key: string) => [
-      songFieldStyles.input,
-      focusedField === key ? songFieldStyles.inputFocused : null,
-      { marginBottom: 14 },
-    ],
-    [focusedField],
-  );
 
   const handleSave = useCallback(async () => {
     const title = draftTitle.trim();
@@ -239,71 +229,16 @@ export default function SongEditScreen() {
           </Text>
         </View>
 
-        <Text style={styles.fieldLabel}>노래 제목</Text>
-        <KeyboardAwareField>
-          <TextInput
-            value={draftTitle}
-            onChangeText={setDraftTitle}
-            placeholder="제목"
-            placeholderTextColor={SongUi.textFaint}
-            onFocus={() => setFocusedField("title")}
-            onBlur={() => setFocusedField(null)}
-            style={inputStyle("title")}
-          />
-        </KeyboardAwareField>
-
-        <Text style={styles.fieldLabel}>가수</Text>
-        <KeyboardAwareField>
-          <TextInput
-            value={draftArtist}
-            onChangeText={setDraftArtist}
-            placeholder="가수명"
-            placeholderTextColor={SongUi.textFaint}
-            onFocus={() => setFocusedField("artist")}
-            onBlur={() => setFocusedField(null)}
-            style={inputStyle("artist")}
-          />
-        </KeyboardAwareField>
-
-        <Text style={styles.fieldLabel}>곡 번호</Text>
-        <View style={styles.numberRow}>
-          <View style={styles.numberCol}>
-            <Text style={songFieldStyles.subLabel}>태진</Text>
-            <KeyboardAwareField>
-              <TextInput
-                value={draftTjNumber}
-                onChangeText={(text) =>
-                  setDraftTjNumber(sanitizeKaraokeDigits(text))
-                }
-                placeholder="번호"
-                placeholderTextColor={SongUi.textFaint}
-                keyboardType="number-pad"
-                maxLength={6}
-                onFocus={() => setFocusedField("tj")}
-                onBlur={() => setFocusedField(null)}
-                style={[...inputStyle("tj"), { marginBottom: 0 }]}
-              />
-            </KeyboardAwareField>
-          </View>
-          <View style={styles.numberCol}>
-            <Text style={songFieldStyles.subLabel}>금영</Text>
-            <KeyboardAwareField>
-              <TextInput
-                value={draftKyNumber}
-                onChangeText={(text) =>
-                  setDraftKyNumber(sanitizeKaraokeDigits(text))
-                }
-                placeholder="번호"
-                placeholderTextColor={SongUi.textFaint}
-                keyboardType="number-pad"
-                maxLength={6}
-                onFocus={() => setFocusedField("ky")}
-                onBlur={() => setFocusedField(null)}
-                style={[...inputStyle("ky"), { marginBottom: 0 }]}
-              />
-            </KeyboardAwareField>
-          </View>
-        </View>
+        <SongBasicFields
+          title={draftTitle}
+          onTitleChange={setDraftTitle}
+          artist={draftArtist}
+          onArtistChange={setDraftArtist}
+          tjNumber={draftTjNumber}
+          onTjNumberChange={setDraftTjNumber}
+          kyNumber={draftKyNumber}
+          onKyNumberChange={setDraftKyNumber}
+        />
 
         {youtubeLinkLocked ? (
           <>
@@ -392,12 +327,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontWeight: "500",
   },
-  numberRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 14,
-  },
-  numberCol: { flex: 1 },
   youtubeInputRow: {
     flexDirection: "row",
     alignItems: "center",

@@ -1,23 +1,22 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ChartModalSongPreview } from "@/components/chart/ChartModalSongPreview";
+import { ChartRow } from "@/components/chart/ChartRow";
+import { AppModal } from "@/components/design/AppModal";
+import { Button } from "@/components/design/Button";
 import { DesignColors } from "@/components/design/colors";
-import { MarqueeText } from "@/components/design/MarqueeText";
+import { EdgeFadeScroller } from "@/components/design/EdgeFadeScroller";
 import { ScreenTitle } from "@/components/design/ScreenTitle";
 import { logDebug } from "@/lib/debug-log-buffer";
 import { sanitizeKaraokeDigits } from "@/lib/song-form-helpers";
@@ -36,35 +35,7 @@ import { loadSongs, saveSongs, type Song } from "@/lib/songs-storage";
 type ChartProvider = "tj" | "ky";
 type ChartCategoryId = "all" | TjChartStrType;
 
-const CATEGORY_SCROLL_EDGE_THRESHOLD = 8;
 const CATEGORY_FADE_WIDTH = 28;
-
-function getRankTextStyle(rankStr: string): {
-  fontSize: number;
-  color: string;
-  fontWeight: "600" | "500";
-} {
-  const n = Number.parseInt(rankStr.trim(), 10);
-  if (n === 1) {
-    return {
-      fontSize: 17,
-      color: DesignColors.accent,
-      fontWeight: "600",
-    };
-  }
-  if (n === 2) {
-    return {
-      fontSize: 16,
-      color: DesignColors.chartRank2,
-      fontWeight: "600",
-    };
-  }
-  return {
-    fontSize: 14,
-    color: DesignColors.textMuted,
-    fontWeight: "500",
-  };
-}
 
 function ChartCategoryScroller({
   categoryId,
@@ -73,77 +44,41 @@ function ChartCategoryScroller({
   categoryId: ChartCategoryId;
   onSelect: (id: ChartCategoryId) => void;
 }) {
-  const [scrollX, setScrollX] = useState(0);
-  const [viewportWidth, setViewportWidth] = useState(0);
-  const [contentWidth, setContentWidth] = useState(0);
-
-  const canScroll =
-    contentWidth > viewportWidth + CATEGORY_SCROLL_EDGE_THRESHOLD;
-  const showLeftFade = canScroll && scrollX > CATEGORY_SCROLL_EDGE_THRESHOLD;
-  const showRightFade =
-    canScroll &&
-    scrollX + viewportWidth <
-      contentWidth - CATEGORY_SCROLL_EDGE_THRESHOLD;
-
   return (
-    <View style={styles.categoryScroller}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        scrollEventThrottle={16}
-        onScroll={(e) => setScrollX(e.nativeEvent.contentOffset.x)}
-        onLayout={(e) => setViewportWidth(e.nativeEvent.layout.width)}
-        onContentSizeChange={(w) => setContentWidth(w)}
-        contentContainerStyle={styles.categoryScrollContent}
-      >
-        {TJ_CHART_CATEGORY_OPTIONS.map((opt) => {
-          const selected = categoryId === opt.id;
-          return (
-            <Pressable
-              key={String(opt.id)}
-              onPress={() => onSelect(opt.id)}
-              style={({ pressed }) => [
-                styles.categoryChip,
-                selected ? styles.categoryChipActive : styles.categoryChipInactive,
-                { opacity: pressed ? 0.85 : 1 },
+    <EdgeFadeScroller
+      fadeWidth={CATEGORY_FADE_WIDTH}
+      style={styles.categoryScroller}
+      contentContainerStyle={styles.categoryScrollContent}
+    >
+      {TJ_CHART_CATEGORY_OPTIONS.map((opt) => {
+        const selected = categoryId === opt.id;
+        return (
+          <Pressable
+            key={String(opt.id)}
+            onPress={() => onSelect(opt.id)}
+            style={({ pressed }) => [
+              styles.categoryChip,
+              selected ? styles.categoryChipActive : styles.categoryChipInactive,
+              { opacity: pressed ? 0.85 : 1 },
+            ]}
+            accessibilityRole="button"
+            accessibilityState={{ selected }}
+            accessibilityLabel={`${opt.label} 차트`}
+          >
+            <Text
+              style={[
+                styles.categoryChipLabel,
+                selected
+                  ? styles.categoryChipLabelActive
+                  : styles.categoryChipLabelInactive,
               ]}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              accessibilityLabel={`${opt.label} 차트`}
             >
-              <Text
-                style={[
-                  styles.categoryChipLabel,
-                  selected
-                    ? styles.categoryChipLabelActive
-                    : styles.categoryChipLabelInactive,
-                ]}
-              >
-                {opt.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-      {showLeftFade ? (
-        <LinearGradient
-          colors={[DesignColors.bg, "transparent"]}
-          start={{ x: 0, y: 0.5 }}
-          end={{ x: 1, y: 0.5 }}
-          style={[styles.categoryFade, styles.categoryFadeLeft]}
-          pointerEvents="none"
-        />
-      ) : null}
-      {showRightFade ? (
-        <LinearGradient
-          colors={["transparent", DesignColors.bg]}
-          start={{ x: 0, y: 0.5 }}
-          end={{ x: 1, y: 0.5 }}
-          style={[styles.categoryFade, styles.categoryFadeRight]}
-          pointerEvents="none"
-        />
-      ) : null}
-    </View>
+              {opt.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </EdgeFadeScroller>
   );
 }
 
@@ -151,131 +86,6 @@ function chartCategoryToStrType(
   categoryId: ChartCategoryId,
 ): TjChartStrType | undefined {
   return categoryId === "all" ? undefined : categoryId;
-}
-
-function ChartModalSongPreview({
-  title,
-  artist,
-  tjPro,
-  imageUri,
-}: {
-  title: string;
-  artist: string;
-  tjPro?: string | number;
-  imageUri?: string | null;
-}) {
-  const uri = imageUri?.trim();
-  const displayTitle = title.trim() || "(제목 없음)";
-  const displayArtist = artist.trim();
-  const tj = tjPro ? sanitizeKaraokeDigits(String(tjPro)) : "";
-
-  return (
-    <View style={styles.modalSongPreview}>
-      {uri ? (
-        <Image
-          source={{ uri }}
-          style={styles.modalSongThumb}
-          contentFit="cover"
-          accessibilityIgnoresInvertColors
-        />
-      ) : (
-        <View style={[styles.modalSongThumb, styles.thumbPlaceholder]}>
-          <Ionicons
-            name="musical-notes"
-            size={20}
-            color={DesignColors.textFaint}
-          />
-        </View>
-      )}
-      <View style={styles.modalSongText}>
-        <Text style={styles.modalSongTitle} numberOfLines={2}>
-          {displayTitle}
-        </Text>
-        {displayArtist ? (
-          <Text style={styles.modalSongArtist} numberOfLines={1}>
-            {displayArtist}
-          </Text>
-        ) : null}
-        {tj ? (
-          <View style={styles.modalTjPill}>
-            <Text style={styles.modalTjPillLabel}>TJ {tj}</Text>
-          </View>
-        ) : null}
-      </View>
-    </View>
-  );
-}
-
-function ChartRow({
-  item,
-  isInList,
-  onPress,
-}: {
-  item: TjTopChartSongItem;
-  isInList: boolean;
-  onPress: () => void;
-}) {
-  const uri = item.imgthumb_path?.trim();
-  const rankLabel = item.rank?.trim() || "—";
-  const rankStyle = getRankTextStyle(rankLabel);
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.row,
-        { opacity: pressed ? 0.75 : 1 },
-      ]}
-      accessibilityRole="button"
-      accessibilityLabel={`${rankLabel}위 ${item.indexTitle} ${item.indexSong}${isInList ? ", 이미 내 리스트에 있음" : ""}, 차트에서 선택`}
-    >
-      <View style={styles.rankCol}>
-        <Text
-          style={[styles.rankText, rankStyle]}
-          numberOfLines={1}
-        >
-          {rankLabel}
-        </Text>
-      </View>
-      {uri ? (
-        <Image
-          source={{ uri }}
-          style={styles.thumb}
-          contentFit="cover"
-          accessibilityIgnoresInvertColors
-        />
-      ) : (
-        <View style={[styles.thumb, styles.thumbPlaceholder]}>
-          <Ionicons
-            name="musical-notes"
-            size={20}
-            color={DesignColors.textFaint}
-          />
-        </View>
-      )}
-      <View style={styles.rowText}>
-        <MarqueeText
-          text={item.indexTitle}
-          color={DesignColors.textPrimary}
-          style={styles.chartTitle}
-        />
-        <Text style={styles.artist} numberOfLines={1}>
-          {item.indexSong}
-        </Text>
-      </View>
-      {isInList ? (
-        <View
-          style={styles.inListBadge}
-          accessibilityLabel="내 리스트에 추가됨"
-        >
-          <Ionicons
-            name="checkmark"
-            size={16}
-            color={DesignColors.inListCheck}
-          />
-        </View>
-      ) : null}
-    </Pressable>
-  );
 }
 
 export default function PopularChartScreen() {
@@ -495,179 +305,99 @@ export default function PopularChartScreen() {
         />
       )}
 
-      <Modal
+      <AppModal
         visible={pendingAdd !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => !savingAdd && setPendingAdd(null)}
+        onClose={() => setPendingAdd(null)}
+        dismissable={!savingAdd}
       >
-        <View style={styles.modalRoot}>
-          <Pressable
-            style={styles.modalBackdrop}
-            onPress={() => !savingAdd && setPendingAdd(null)}
-            accessibilityLabel="닫기"
+        <Text style={styles.modalTitle}>내 리스트에 추가</Text>
+        <Text style={styles.modalMessage}>이 곡을 내 노래 목록에 넣을까요?</Text>
+        {pendingAdd ? (
+          <ChartModalSongPreview
+            title={pendingAdd.indexTitle}
+            artist={pendingAdd.indexSong}
+            tjPro={pendingAdd.pro}
+            imageUri={pendingAdd.imgthumb_path}
           />
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>내 리스트에 추가</Text>
-            <Text style={styles.modalMessage}>
-              이 곡을 내 노래 목록에 넣을까요?
-            </Text>
-            {pendingAdd ? (
-              <ChartModalSongPreview
-                title={pendingAdd.indexTitle}
-                artist={pendingAdd.indexSong}
-                tjPro={pendingAdd.pro}
-                imageUri={pendingAdd.imgthumb_path}
-              />
-            ) : null}
-            <View style={styles.modalActions}>
-              <Pressable
-                onPress={() => !savingAdd && setPendingAdd(null)}
-                style={({ pressed }) => [
-                  styles.modalCancelBtn,
-                  { opacity: pressed ? 0.65 : 1 },
-                ]}
-                disabled={savingAdd}
-                accessibilityRole="button"
-                accessibilityLabel="취소"
-              >
-                <Text style={styles.modalCancelLabel}>취소</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => void confirmAdd()}
-                style={({ pressed }) => [
-                  styles.modalConfirmBtn,
-                  { opacity: savingAdd ? 0.55 : pressed ? 0.88 : 1 },
-                ]}
-                disabled={savingAdd}
-                accessibilityRole="button"
-                accessibilityLabel="추가"
-              >
-                <Text style={styles.modalConfirmLabel}>
-                  {savingAdd ? "추가 중…" : "추가"}
-                </Text>
-              </Pressable>
-            </View>
-          </View>
+        ) : null}
+        <View style={styles.modalActions}>
+          <Button
+            label="취소"
+            variant="text"
+            onPress={() => setPendingAdd(null)}
+            disabled={savingAdd}
+          />
+          <Button
+            label="추가"
+            onPress={() => void confirmAdd()}
+            loading={savingAdd}
+          />
         </View>
-      </Modal>
+      </AppModal>
 
-      <Modal
+      <AppModal
         visible={duplicateExisting !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setDuplicateExisting(null)}
+        onClose={() => setDuplicateExisting(null)}
       >
-        <View style={styles.modalRoot}>
-          <Pressable
-            style={styles.modalBackdrop}
+        <Text style={styles.modalTitle}>이미 내 리스트에 있어요</Text>
+        <Text style={styles.modalMessage}>
+          아래 곡이 목록에 등록되어 있습니다.
+        </Text>
+        {duplicateExisting ? (
+          <ChartModalSongPreview
+            title={duplicateExisting.title}
+            artist={duplicateExisting.artist}
+            tjPro={duplicateExisting.tjNumber}
+          />
+        ) : null}
+        <View style={styles.modalActions}>
+          <Button
+            label="닫기"
+            variant="text"
             onPress={() => setDuplicateExisting(null)}
-            accessibilityLabel="닫기"
           />
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>이미 내 리스트에 있어요</Text>
-            <Text style={styles.modalMessage}>
-              아래 곡이 목록에 등록되어 있습니다.
-            </Text>
-            {duplicateExisting ? (
-              <ChartModalSongPreview
-                title={duplicateExisting.title}
-                artist={duplicateExisting.artist}
-                tjPro={duplicateExisting.tjNumber}
-              />
-            ) : null}
-            <View style={styles.modalActions}>
-              <Pressable
-                onPress={() => setDuplicateExisting(null)}
-                style={({ pressed }) => [
-                  styles.modalCancelBtn,
-                  { opacity: pressed ? 0.65 : 1 },
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="닫기"
-              >
-                <Text style={styles.modalCancelLabel}>닫기</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  const id = duplicateExisting?.id;
-                  setDuplicateExisting(null);
-                  if (id) {
-                    router.push({ pathname: "/song/[id]", params: { id } });
-                  }
-                }}
-                style={({ pressed }) => [
-                  styles.modalConfirmBtn,
-                  { opacity: pressed ? 0.88 : 1 },
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="내 곡으로 이동"
-              >
-                <Text style={styles.modalConfirmLabel}>내 곡으로 이동</Text>
-              </Pressable>
-            </View>
-          </View>
+          <Button
+            label="내 곡으로 이동"
+            onPress={() => {
+              const id = duplicateExisting?.id;
+              setDuplicateExisting(null);
+              if (id) {
+                router.push({ pathname: "/song/[id]", params: { id } });
+              }
+            }}
+          />
         </View>
-      </Modal>
+      </AppModal>
 
-      <Modal
-        visible={addedSong !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setAddedSong(null)}
-      >
-        <View style={styles.modalRoot}>
-          <Pressable
-            style={styles.modalBackdrop}
-            onPress={() => setAddedSong(null)}
-            accessibilityLabel="닫기"
+      <AppModal visible={addedSong !== null} onClose={() => setAddedSong(null)}>
+        <Text style={styles.modalTitle}>리스트에 추가됐어요</Text>
+        <Text style={styles.modalMessage}>내 노래 목록에 저장했습니다.</Text>
+        {addedSong ? (
+          <ChartModalSongPreview
+            title={addedSong.song.title}
+            artist={addedSong.song.artist}
+            tjPro={addedSong.song.tjNumber}
+            imageUri={addedSong.imageUri}
           />
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>리스트에 추가됐어요</Text>
-            <Text style={styles.modalMessage}>
-              내 노래 목록에 저장했습니다.
-            </Text>
-            {addedSong ? (
-              <ChartModalSongPreview
-                title={addedSong.song.title}
-                artist={addedSong.song.artist}
-                tjPro={addedSong.song.tjNumber}
-                imageUri={addedSong.imageUri}
-              />
-            ) : null}
-            <View style={styles.modalActions}>
-              <Pressable
-                onPress={() => setAddedSong(null)}
-                style={({ pressed }) => [
-                  styles.modalCancelBtn,
-                  { opacity: pressed ? 0.65 : 1 },
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="닫기"
-              >
-                <Text style={styles.modalCancelLabel}>닫기</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  const id = addedSong?.song.id;
-                  setAddedSong(null);
-                  if (id) {
-                    router.push({ pathname: "/song/[id]", params: { id } });
-                  }
-                }}
-                style={({ pressed }) => [
-                  styles.modalConfirmBtn,
-                  { opacity: pressed ? 0.88 : 1 },
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="해당 곡으로 이동"
-              >
-                <Text style={styles.modalConfirmLabel}>해당 곡으로 이동</Text>
-              </Pressable>
-            </View>
-          </View>
+        ) : null}
+        <View style={styles.modalActions}>
+          <Button
+            label="닫기"
+            variant="text"
+            onPress={() => setAddedSong(null)}
+          />
+          <Button
+            label="해당 곡으로 이동"
+            onPress={() => {
+              const id = addedSong?.song.id;
+              setAddedSong(null);
+              if (id) {
+                router.push({ pathname: "/song/[id]", params: { id } });
+              }
+            }}
+          />
         </View>
-      </Modal>
+      </AppModal>
     </View>
   );
 }
@@ -744,19 +474,6 @@ const styles = StyleSheet.create({
     color: DesignColors.accent,
     fontWeight: "500",
   },
-  categoryFade: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    width: CATEGORY_FADE_WIDTH,
-    zIndex: 1,
-  },
-  categoryFadeLeft: {
-    left: 0,
-  },
-  categoryFadeRight: {
-    right: 0,
-  },
   periodText: {
     fontSize: 11,
     color: DesignColors.textMuted,
@@ -782,80 +499,6 @@ const styles = StyleSheet.create({
   listContent: {
     paddingBottom: 24,
   },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 11,
-    borderBottomWidth: 1,
-    borderBottomColor: DesignColors.listDivider,
-    gap: 12,
-  },
-  rankCol: {
-    width: 28,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  rankText: {
-    fontVariant: ["tabular-nums"],
-  },
-  thumb: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-    backgroundColor: DesignColors.bgCard,
-  },
-  thumbPlaceholder: {
-    backgroundColor: DesignColors.bgCard,
-    borderWidth: 1,
-    borderColor: DesignColors.bgBorder,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  rowText: {
-    flex: 1,
-    minWidth: 0,
-    gap: 2,
-  },
-  chartTitle: {
-    fontSize: 14,
-    fontWeight: "500",
-    lineHeight: 20,
-  },
-  artist: {
-    fontSize: 12,
-    color: DesignColors.textSecondary,
-    lineHeight: 16,
-  },
-  inListBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: DesignColors.inListBadgeBg,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalRoot: {
-    flex: 1,
-    justifyContent: "center",
-    paddingHorizontal: 28,
-  },
-  modalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: DesignColors.scrim,
-  },
-  modalCard: {
-    backgroundColor: DesignColors.bgCard,
-    borderWidth: 1,
-    borderColor: DesignColors.bgBorder,
-    borderRadius: 16,
-    paddingHorizontal: 20,
-    paddingTop: 22,
-    paddingBottom: 16,
-    maxWidth: 400,
-    width: "100%",
-    alignSelf: "center",
-  },
   modalTitle: {
     fontSize: 18,
     fontWeight: "600",
@@ -869,80 +512,10 @@ const styles = StyleSheet.create({
     color: DesignColors.textSecondary,
     marginBottom: 16,
   },
-  modalSongPreview: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-    backgroundColor: DesignColors.inputSurface,
-    borderWidth: 1,
-    borderColor: DesignColors.bgBorder,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 20,
-  },
-  modalSongThumb: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
-    backgroundColor: DesignColors.bgCard,
-  },
-  modalSongText: {
-    flex: 1,
-    minWidth: 0,
-    gap: 4,
-  },
-  modalSongTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    lineHeight: 21,
-    color: DesignColors.textPrimary,
-    letterSpacing: -0.2,
-  },
-  modalSongArtist: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: DesignColors.textSecondary,
-  },
-  modalTjPill: {
-    alignSelf: "flex-start",
-    marginTop: 2,
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    backgroundColor: DesignColors.filterChipActiveBg,
-  },
-  modalTjPillLabel: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: DesignColors.accent,
-    letterSpacing: 0.2,
-  },
   modalActions: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-end",
     gap: 8,
-  },
-  modalCancelBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-  },
-  modalCancelLabel: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: DesignColors.textMuted,
-  },
-  modalConfirmBtn: {
-    backgroundColor: DesignColors.accent,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    minWidth: 72,
-    alignItems: "center",
-  },
-  modalConfirmLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: DesignColors.textOnAccent,
   },
 });
