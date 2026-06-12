@@ -18,6 +18,7 @@ import DraggableFlatList, {
 import { Swipeable } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { Button } from "@/components/design/Button";
 import { DesignColors } from "@/components/design/colors";
 import { EdgeFadeScroller } from "@/components/design/EdgeFadeScroller";
 import { useConfirm } from "@/components/design/confirm-dialog-context";
@@ -546,26 +547,12 @@ export default function HomeScreen() {
               footer={
                 <View style={styles.modalActions}>
                   <View style={{ flex: 1 }} />
-                  <Pressable
+                  <Button
+                    label="취소"
+                    variant="text"
                     onPress={closeModal}
-                    style={({ pressed }) => [
-                      styles.textBtn,
-                      { opacity: pressed ? 0.6 : 1 },
-                    ]}
-                  >
-                    <ThemedText style={styles.modalCancelLabel}>
-                      취소
-                    </ThemedText>
-                  </Pressable>
-                  <Pressable
-                    onPress={handleSaveModal}
-                    style={({ pressed }) => [
-                      styles.primaryBtn,
-                      { opacity: pressed ? 0.85 : 1 },
-                    ]}
-                  >
-                    <ThemedText style={styles.primaryBtnLabel}>저장</ThemedText>
-                  </Pressable>
+                  />
+                  <Button label="저장" onPress={() => void handleSaveModal()} />
                 </View>
               }
             >
@@ -759,29 +746,11 @@ const styles = StyleSheet.create({
   modalTitle: {
     marginBottom: 16,
   },
-  modalCancelLabel: {
-    color: DesignColors.textMuted,
-  },
   modalActions: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     marginTop: 8,
     paddingTop: 4,
-  },
-  textBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-  },
-  primaryBtn: {
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    backgroundColor: DesignColors.accent,
-  },
-  primaryBtnLabel: {
-    color: DesignColors.textOnAccent,
-    fontWeight: "700",
-    fontSize: 16,
   },
 });

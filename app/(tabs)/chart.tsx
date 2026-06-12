@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { Button } from "@/components/design/Button";
 import { DesignColors } from "@/components/design/colors";
 import { EdgeFadeScroller } from "@/components/design/EdgeFadeScroller";
 import { MarqueeText } from "@/components/design/MarqueeText";
@@ -483,32 +484,17 @@ export default function PopularChartScreen() {
               />
             ) : null}
             <View style={styles.modalActions}>
-              <Pressable
-                onPress={() => !savingAdd && setPendingAdd(null)}
-                style={({ pressed }) => [
-                  styles.modalCancelBtn,
-                  { opacity: pressed ? 0.65 : 1 },
-                ]}
+              <Button
+                label="취소"
+                variant="text"
+                onPress={() => setPendingAdd(null)}
                 disabled={savingAdd}
-                accessibilityRole="button"
-                accessibilityLabel="취소"
-              >
-                <Text style={styles.modalCancelLabel}>취소</Text>
-              </Pressable>
-              <Pressable
+              />
+              <Button
+                label="추가"
                 onPress={() => void confirmAdd()}
-                style={({ pressed }) => [
-                  styles.modalConfirmBtn,
-                  { opacity: savingAdd ? 0.55 : pressed ? 0.88 : 1 },
-                ]}
-                disabled={savingAdd}
-                accessibilityRole="button"
-                accessibilityLabel="추가"
-              >
-                <Text style={styles.modalConfirmLabel}>
-                  {savingAdd ? "추가 중…" : "추가"}
-                </Text>
-              </Pressable>
+                loading={savingAdd}
+              />
             </View>
           </View>
         </View>
@@ -539,18 +525,13 @@ export default function PopularChartScreen() {
               />
             ) : null}
             <View style={styles.modalActions}>
-              <Pressable
+              <Button
+                label="닫기"
+                variant="text"
                 onPress={() => setDuplicateExisting(null)}
-                style={({ pressed }) => [
-                  styles.modalCancelBtn,
-                  { opacity: pressed ? 0.65 : 1 },
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="닫기"
-              >
-                <Text style={styles.modalCancelLabel}>닫기</Text>
-              </Pressable>
-              <Pressable
+              />
+              <Button
+                label="내 곡으로 이동"
                 onPress={() => {
                   const id = duplicateExisting?.id;
                   setDuplicateExisting(null);
@@ -558,15 +539,7 @@ export default function PopularChartScreen() {
                     router.push({ pathname: "/song/[id]", params: { id } });
                   }
                 }}
-                style={({ pressed }) => [
-                  styles.modalConfirmBtn,
-                  { opacity: pressed ? 0.88 : 1 },
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="내 곡으로 이동"
-              >
-                <Text style={styles.modalConfirmLabel}>내 곡으로 이동</Text>
-              </Pressable>
+              />
             </View>
           </View>
         </View>
@@ -598,18 +571,13 @@ export default function PopularChartScreen() {
               />
             ) : null}
             <View style={styles.modalActions}>
-              <Pressable
+              <Button
+                label="닫기"
+                variant="text"
                 onPress={() => setAddedSong(null)}
-                style={({ pressed }) => [
-                  styles.modalCancelBtn,
-                  { opacity: pressed ? 0.65 : 1 },
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="닫기"
-              >
-                <Text style={styles.modalCancelLabel}>닫기</Text>
-              </Pressable>
-              <Pressable
+              />
+              <Button
+                label="해당 곡으로 이동"
                 onPress={() => {
                   const id = addedSong?.song.id;
                   setAddedSong(null);
@@ -617,15 +585,7 @@ export default function PopularChartScreen() {
                     router.push({ pathname: "/song/[id]", params: { id } });
                   }
                 }}
-                style={({ pressed }) => [
-                  styles.modalConfirmBtn,
-                  { opacity: pressed ? 0.88 : 1 },
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="해당 곡으로 이동"
-              >
-                <Text style={styles.modalConfirmLabel}>해당 곡으로 이동</Text>
-              </Pressable>
+              />
             </View>
           </View>
         </View>
@@ -871,27 +831,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "flex-end",
     gap: 8,
-  },
-  modalCancelBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-  },
-  modalCancelLabel: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: DesignColors.textMuted,
-  },
-  modalConfirmBtn: {
-    backgroundColor: DesignColors.accent,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    minWidth: 72,
-    alignItems: "center",
-  },
-  modalConfirmLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: DesignColors.textOnAccent,
   },
 });
