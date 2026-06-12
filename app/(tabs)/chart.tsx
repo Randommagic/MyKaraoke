@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -14,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ChartModalSongPreview } from "@/components/chart/ChartModalSongPreview";
 import { ChartRow } from "@/components/chart/ChartRow";
+import { AppModal } from "@/components/design/AppModal";
 import { Button } from "@/components/design/Button";
 import { DesignColors } from "@/components/design/colors";
 import { EdgeFadeScroller } from "@/components/design/EdgeFadeScroller";
@@ -305,138 +305,99 @@ export default function PopularChartScreen() {
         />
       )}
 
-      <Modal
+      <AppModal
         visible={pendingAdd !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => !savingAdd && setPendingAdd(null)}
+        onClose={() => setPendingAdd(null)}
+        dismissable={!savingAdd}
       >
-        <View style={styles.modalRoot}>
-          <Pressable
-            style={styles.modalBackdrop}
-            onPress={() => !savingAdd && setPendingAdd(null)}
-            accessibilityLabel="닫기"
+        <Text style={styles.modalTitle}>내 리스트에 추가</Text>
+        <Text style={styles.modalMessage}>이 곡을 내 노래 목록에 넣을까요?</Text>
+        {pendingAdd ? (
+          <ChartModalSongPreview
+            title={pendingAdd.indexTitle}
+            artist={pendingAdd.indexSong}
+            tjPro={pendingAdd.pro}
+            imageUri={pendingAdd.imgthumb_path}
           />
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>내 리스트에 추가</Text>
-            <Text style={styles.modalMessage}>
-              이 곡을 내 노래 목록에 넣을까요?
-            </Text>
-            {pendingAdd ? (
-              <ChartModalSongPreview
-                title={pendingAdd.indexTitle}
-                artist={pendingAdd.indexSong}
-                tjPro={pendingAdd.pro}
-                imageUri={pendingAdd.imgthumb_path}
-              />
-            ) : null}
-            <View style={styles.modalActions}>
-              <Button
-                label="취소"
-                variant="text"
-                onPress={() => setPendingAdd(null)}
-                disabled={savingAdd}
-              />
-              <Button
-                label="추가"
-                onPress={() => void confirmAdd()}
-                loading={savingAdd}
-              />
-            </View>
-          </View>
+        ) : null}
+        <View style={styles.modalActions}>
+          <Button
+            label="취소"
+            variant="text"
+            onPress={() => setPendingAdd(null)}
+            disabled={savingAdd}
+          />
+          <Button
+            label="추가"
+            onPress={() => void confirmAdd()}
+            loading={savingAdd}
+          />
         </View>
-      </Modal>
+      </AppModal>
 
-      <Modal
+      <AppModal
         visible={duplicateExisting !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setDuplicateExisting(null)}
+        onClose={() => setDuplicateExisting(null)}
       >
-        <View style={styles.modalRoot}>
-          <Pressable
-            style={styles.modalBackdrop}
+        <Text style={styles.modalTitle}>이미 내 리스트에 있어요</Text>
+        <Text style={styles.modalMessage}>
+          아래 곡이 목록에 등록되어 있습니다.
+        </Text>
+        {duplicateExisting ? (
+          <ChartModalSongPreview
+            title={duplicateExisting.title}
+            artist={duplicateExisting.artist}
+            tjPro={duplicateExisting.tjNumber}
+          />
+        ) : null}
+        <View style={styles.modalActions}>
+          <Button
+            label="닫기"
+            variant="text"
             onPress={() => setDuplicateExisting(null)}
-            accessibilityLabel="닫기"
           />
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>이미 내 리스트에 있어요</Text>
-            <Text style={styles.modalMessage}>
-              아래 곡이 목록에 등록되어 있습니다.
-            </Text>
-            {duplicateExisting ? (
-              <ChartModalSongPreview
-                title={duplicateExisting.title}
-                artist={duplicateExisting.artist}
-                tjPro={duplicateExisting.tjNumber}
-              />
-            ) : null}
-            <View style={styles.modalActions}>
-              <Button
-                label="닫기"
-                variant="text"
-                onPress={() => setDuplicateExisting(null)}
-              />
-              <Button
-                label="내 곡으로 이동"
-                onPress={() => {
-                  const id = duplicateExisting?.id;
-                  setDuplicateExisting(null);
-                  if (id) {
-                    router.push({ pathname: "/song/[id]", params: { id } });
-                  }
-                }}
-              />
-            </View>
-          </View>
+          <Button
+            label="내 곡으로 이동"
+            onPress={() => {
+              const id = duplicateExisting?.id;
+              setDuplicateExisting(null);
+              if (id) {
+                router.push({ pathname: "/song/[id]", params: { id } });
+              }
+            }}
+          />
         </View>
-      </Modal>
+      </AppModal>
 
-      <Modal
-        visible={addedSong !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setAddedSong(null)}
-      >
-        <View style={styles.modalRoot}>
-          <Pressable
-            style={styles.modalBackdrop}
-            onPress={() => setAddedSong(null)}
-            accessibilityLabel="닫기"
+      <AppModal visible={addedSong !== null} onClose={() => setAddedSong(null)}>
+        <Text style={styles.modalTitle}>리스트에 추가됐어요</Text>
+        <Text style={styles.modalMessage}>내 노래 목록에 저장했습니다.</Text>
+        {addedSong ? (
+          <ChartModalSongPreview
+            title={addedSong.song.title}
+            artist={addedSong.song.artist}
+            tjPro={addedSong.song.tjNumber}
+            imageUri={addedSong.imageUri}
           />
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>리스트에 추가됐어요</Text>
-            <Text style={styles.modalMessage}>
-              내 노래 목록에 저장했습니다.
-            </Text>
-            {addedSong ? (
-              <ChartModalSongPreview
-                title={addedSong.song.title}
-                artist={addedSong.song.artist}
-                tjPro={addedSong.song.tjNumber}
-                imageUri={addedSong.imageUri}
-              />
-            ) : null}
-            <View style={styles.modalActions}>
-              <Button
-                label="닫기"
-                variant="text"
-                onPress={() => setAddedSong(null)}
-              />
-              <Button
-                label="해당 곡으로 이동"
-                onPress={() => {
-                  const id = addedSong?.song.id;
-                  setAddedSong(null);
-                  if (id) {
-                    router.push({ pathname: "/song/[id]", params: { id } });
-                  }
-                }}
-              />
-            </View>
-          </View>
+        ) : null}
+        <View style={styles.modalActions}>
+          <Button
+            label="닫기"
+            variant="text"
+            onPress={() => setAddedSong(null)}
+          />
+          <Button
+            label="해당 곡으로 이동"
+            onPress={() => {
+              const id = addedSong?.song.id;
+              setAddedSong(null);
+              if (id) {
+                router.push({ pathname: "/song/[id]", params: { id } });
+              }
+            }}
+          />
         </View>
-      </Modal>
+      </AppModal>
     </View>
   );
 }
@@ -537,27 +498,6 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 24,
-  },
-  modalRoot: {
-    flex: 1,
-    justifyContent: "center",
-    paddingHorizontal: 28,
-  },
-  modalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: DesignColors.scrim,
-  },
-  modalCard: {
-    backgroundColor: DesignColors.bgCard,
-    borderWidth: 1,
-    borderColor: DesignColors.bgBorder,
-    borderRadius: 16,
-    paddingHorizontal: 20,
-    paddingTop: 22,
-    paddingBottom: 16,
-    maxWidth: 400,
-    width: "100%",
-    alignSelf: "center",
   },
   modalTitle: {
     fontSize: 18,
