@@ -34,6 +34,7 @@ import {
 } from "@/components/design/keyboard-aware-scroll";
 import { mapStorageSongToCardModel } from "@/components/design/map-song";
 import { ScreenTitle } from "@/components/design/ScreenTitle";
+import { Toast, useToast } from "@/components/design/Toast";
 import { SongCard } from "@/components/design/SongCard";
 import {
   SWIPE_ACTION_WIDTH,
@@ -337,9 +338,7 @@ export default function HomeScreen() {
   const { pendingUrl: pendingYoutubeShareUrl, consumePendingUrl } =
     usePendingYoutubeShareUrl();
   const [addMenuOpen, setAddMenuOpen] = useState(false);
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastMessage, setToastMessage] = useState("");
-  const toastOpacity = useRef(new Animated.Value(0)).current;
+  const toast = useToast();
 
   const modalScrollMaxHeight = useMemo(
     () => Math.min(Dimensions.get("window").height * 0.52, 480),
@@ -482,31 +481,9 @@ export default function HomeScreen() {
     setDraftTranspose((v) => Math.max(-12, Math.min(12, v + delta)));
   }, []);
 
-  const showToast = useCallback(
-    (message: string) => {
-      setToastMessage(message);
-      setToastVisible(true);
-      toastOpacity.setValue(0);
-      Animated.sequence([
-        Animated.timing(toastOpacity, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.delay(2200),
-        Animated.timing(toastOpacity, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start(() => setToastVisible(false));
-    },
-    [toastOpacity],
-  );
-
   const showReorderDisabledToast = useCallback(() => {
-    showToast("순서 변경은 전체 보기에서만 가능해요");
-  }, [showToast]);
+    toast.show("순서 변경은 전체 보기에서만 가능해요");
+  }, [toast]);
 
   const swipeRowRefs = useRef<Map<string, Swipeable>>(new Map());
 
@@ -1045,21 +1022,7 @@ export default function HomeScreen() {
         initialUrl={youtubeImportInitialUrl}
       />
 
-      {toastVisible ? (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.toast,
-            {
-              opacity: toastOpacity,
-              bottom: Math.max(insets.bottom, 12) + 56,
-              backgroundColor: DesignColors.toastBg,
-            },
-          ]}
-        >
-          <ThemedText style={styles.toastText}>{toastMessage}</ThemedText>
-        </Animated.View>
-      ) : null}
+      <Toast controller={toast} offset={56} />
     </ThemedView>
   );
 }
@@ -1279,25 +1242,6 @@ const styles = StyleSheet.create({
   swipeSungCancelActionLabel: {
     color: DesignColors.swipeSungCancelText,
     fontSize: 10,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  toast: {
-    position: "absolute",
-    alignSelf: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 6,
-    zIndex: 60,
-  },
-  toastText: {
-    color: DesignColors.toastText,
-    fontSize: 14,
     fontWeight: "600",
     textAlign: "center",
   },
