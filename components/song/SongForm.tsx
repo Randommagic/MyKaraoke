@@ -16,6 +16,7 @@ import {
   songFieldStyles,
 } from "@/components/song/song-screen-ui";
 import { formatTranspose, sanitizeKaraokeDigits } from "@/lib/song-form-helpers";
+import { MAX_SONG_MEMO_LENGTH } from "@/lib/songs-storage";
 
 /** 음정 전치 범위(반음) */
 export const TRANSPOSE_MIN = -12;
@@ -139,6 +140,43 @@ export function SongBasicFields({
   );
 }
 
+/**
+ * 메모 입력 + 글자 수 카운터. 최대 {@link MAX_SONG_MEMO_LENGTH}자.
+ * 추가 모달(드래프트)·곡 상세(blur 저장) 양쪽에서 사용.
+ */
+export function MemoField({
+  value,
+  onChangeText,
+  onBlur,
+  placeholder = "간단히 적어두기",
+}: {
+  value: string;
+  onChangeText: (v: string) => void;
+  onBlur?: () => void;
+  placeholder?: string;
+}) {
+  return (
+    <>
+      <KeyboardAwareField>
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          onBlur={onBlur}
+          maxLength={MAX_SONG_MEMO_LENGTH}
+          placeholder={placeholder}
+          placeholderTextColor={SongUi.textFaint}
+          multiline
+          textAlignVertical="top"
+          style={styles.memoInput}
+        />
+      </KeyboardAwareField>
+      <Text style={styles.memoCounter}>
+        [{value.length}/{MAX_SONG_MEMO_LENGTH}]
+      </Text>
+    </>
+  );
+}
+
 /** 음정(키 업/다운) ± 스테퍼 — 반음 단위, ±12까지. */
 export function TransposeStepper({
   value,
@@ -178,6 +216,24 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl2,
   },
   numberCol: { flex: 1 },
+  memoInput: {
+    borderWidth: 1,
+    borderColor: SongUi.border,
+    borderRadius: Radius.md,
+    backgroundColor: SongUi.cardBg,
+    minHeight: 80,
+    paddingHorizontal: Spacing.xl2,
+    paddingVertical: Spacing.xl,
+    fontSize: 14,
+    color: SongUi.text,
+    marginBottom: Spacing.xs,
+  },
+  memoCounter: {
+    alignSelf: "flex-end",
+    fontSize: 11,
+    color: SongUi.textFaint,
+    marginBottom: Spacing.xl4,
+  },
   transposeRow: {
     flexDirection: "row",
     alignItems: "center",

@@ -21,14 +21,15 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DesignColors } from "@/components/design/colors";
 import { EdgeFadeScroller } from "@/components/design/EdgeFadeScroller";
 import { useConfirm } from "@/components/design/confirm-dialog-context";
-import {
-  KeyboardAwareField,
-  KeyboardAwareScrollView,
-} from "@/components/design/keyboard-aware-scroll";
+import { KeyboardAwareScrollView } from "@/components/design/keyboard-aware-scroll";
 import { ScreenTitle } from "@/components/design/ScreenTitle";
 import { Toast, useToast } from "@/components/design/Toast";
 import { SwipeableSongRow } from "@/components/home/SwipeableSongRow";
-import { SongBasicFields, TransposeStepper } from "@/components/song/SongForm";
+import {
+  MemoField,
+  SongBasicFields,
+  TransposeStepper,
+} from "@/components/song/SongForm";
 import {
   FieldLabel,
   GenderKeyRow,
@@ -45,7 +46,6 @@ import {
   clampSongMemo,
   createSongId,
   loadSongs,
-  MAX_SONG_MEMO_LENGTH,
   saveSongs,
   SONG_READINESS_OPTIONS,
   toggleSungTodayInDates,
@@ -366,15 +366,6 @@ export default function HomeScreen() {
     [persist],
   );
 
-  const inputSurfaceStyle = useMemo(
-    () => ({
-      borderColor: DesignColors.bgBorder,
-      color: DesignColors.textPrimary,
-      backgroundColor: DesignColors.inputSurface,
-    }),
-    [],
-  );
-
   const filteredSongs = useMemo(() => {
     let result = songs;
     if (readinessFilter !== "all") {
@@ -684,26 +675,8 @@ export default function HomeScreen() {
                 onChange={setDraftTranspose}
               />
 
-              <ThemedText style={styles.fieldLabel}>메모</ThemedText>
-              <KeyboardAwareField>
-                <TextInput
-                  value={draftMemo}
-                  onChangeText={setDraftMemo}
-                  maxLength={MAX_SONG_MEMO_LENGTH}
-                  placeholder="간단히 적어두기"
-                  placeholderTextColor={DesignColors.textMuted}
-                  multiline
-                  textAlignVertical="top"
-                  style={[
-                    styles.modalInput,
-                    styles.modalMemoInput,
-                    inputSurfaceStyle,
-                  ]}
-                />
-              </KeyboardAwareField>
-              <ThemedText style={styles.memoCounter}>
-                [{draftMemo.length}/{MAX_SONG_MEMO_LENGTH}]
-              </ThemedText>
+              <FieldLabel>메모</FieldLabel>
+              <MemoField value={draftMemo} onChangeText={setDraftMemo} />
             </KeyboardAwareScrollView>
           </View>
         </View>
@@ -915,30 +888,6 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     marginBottom: 16,
-  },
-  fieldLabel: {
-    marginBottom: 6,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  modalInput: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    marginBottom: 14,
-  },
-  modalMemoInput: {
-    minHeight: 88,
-    paddingTop: 12,
-    marginBottom: 4,
-  },
-  memoCounter: {
-    alignSelf: "flex-end",
-    fontSize: 11,
-    color: DesignColors.textFaint,
-    marginBottom: 14,
   },
   modalCancelLabel: {
     color: DesignColors.textMuted,
