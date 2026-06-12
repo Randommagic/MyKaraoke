@@ -24,6 +24,7 @@ import { useConfirm } from "@/components/design/confirm-dialog-context";
 import { KeyboardAwareScrollView } from "@/components/design/keyboard-aware-scroll";
 import { ScreenTitle } from "@/components/design/ScreenTitle";
 import { Toast, useToast } from "@/components/design/Toast";
+import { AddFab } from "@/components/home/AddFab";
 import { SwipeableSongRow } from "@/components/home/SwipeableSongRow";
 import {
   MemoField,
@@ -517,93 +518,13 @@ export default function HomeScreen() {
         )}
       />
 
-      {addMenuOpen ? (
-        <Pressable
-          style={styles.fabScrim}
-          onPress={() => setAddMenuOpen(false)}
-          accessibilityLabel="메뉴 닫기"
-        />
-      ) : null}
-
-      <View
-        style={[styles.fabStack, { bottom: Math.max(insets.bottom, 10) + 8 }]}
-        pointerEvents="box-none"
-      >
-        {addMenuOpen ? (
-          <View style={styles.fabBubble} accessibilityRole="menu">
-            <Pressable
-              onPress={() => {
-                setAddMenuOpen(false);
-                openCreateModal();
-              }}
-              style={({ pressed }) => [
-                styles.fabBubbleRow,
-                { opacity: pressed ? 0.75 : 1 },
-              ]}
-              accessibilityRole="menuitem"
-              accessibilityLabel="직접 추가"
-            >
-              <Ionicons
-                name="create-outline"
-                size={22}
-                color={DesignColors.accent}
-              />
-              <ThemedText type="defaultSemiBold">직접 추가</ThemedText>
-            </Pressable>
-            <View style={styles.fabBubbleDivider} />
-            <Pressable
-              onPress={() => {
-                setAddMenuOpen(false);
-                router.push("/chart");
-              }}
-              style={({ pressed }) => [
-                styles.fabBubbleRow,
-                { opacity: pressed ? 0.75 : 1 },
-              ]}
-              accessibilityRole="menuitem"
-              accessibilityLabel="인기 차트에서 추가"
-            >
-              <Ionicons
-                name="stats-chart"
-                size={22}
-                color={DesignColors.chartRank2}
-              />
-              <ThemedText type="defaultSemiBold">인기 차트에서 추가</ThemedText>
-            </Pressable>
-            <View style={styles.fabBubbleDivider} />
-            <Pressable
-              onPress={() => {
-                setAddMenuOpen(false);
-                setYoutubeImportVisible(true);
-              }}
-              style={({ pressed }) => [
-                styles.fabBubbleRow,
-                { opacity: pressed ? 0.75 : 1 },
-              ]}
-              accessibilityRole="menuitem"
-              accessibilityLabel="YouTube에서 추가"
-            >
-              <Ionicons name="logo-youtube" size={22} color="#FF0000" />
-              <ThemedText type="defaultSemiBold">YouTube에서 추가</ThemedText>
-            </Pressable>
-          </View>
-        ) : null}
-
-        <Pressable
-          onPress={() => setAddMenuOpen((o) => !o)}
-          style={({ pressed }) => [
-            styles.fabMain,
-            {
-              backgroundColor: DesignColors.accent,
-              opacity: pressed ? 0.88 : 1,
-            },
-          ]}
-          accessibilityLabel="곡 추가 메뉴 열기"
-          accessibilityState={{ expanded: addMenuOpen }}
-        >
-          <Ionicons name="add" size={34} color={DesignColors.textOnAccent} />
-        </Pressable>
-      </View>
+      <AddFab
+        open={addMenuOpen}
+        onOpenChange={setAddMenuOpen}
+        onAddManual={openCreateModal}
+        onAddFromChart={() => router.push("/chart")}
+        onAddFromYoutube={() => setYoutubeImportVisible(true)}
+      />
 
       <Modal
         visible={modalSongId === CREATE_MODAL_ID}
@@ -760,57 +681,6 @@ const styles = StyleSheet.create({
   },
   listFlex: {
     flex: 1,
-  },
-  fabScrim: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.22)",
-    zIndex: 40,
-  },
-  fabStack: {
-    position: "absolute",
-    right: 20,
-    zIndex: 50,
-    alignItems: "flex-end",
-    gap: 12,
-  },
-  fabBubble: {
-    minWidth: 208,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: DesignColors.bgBorder,
-    backgroundColor: DesignColors.bgCard,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  fabBubbleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-  },
-  fabBubbleDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: DesignColors.bgBorder,
-    opacity: 0.85,
-  },
-  fabMain: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 3,
-    borderColor: DesignColors.bg,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.22,
-    shadowRadius: 5,
-    elevation: 8,
   },
   readinessFilterScroller: {
     marginBottom: 0,

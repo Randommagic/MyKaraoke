@@ -13,30 +13,52 @@ import {
   type SongReadiness,
 } from "@/lib/songs-storage";
 
+/**
+ * 곡 화면(상세·편집) 색 별칭. 값은 모두 {@link DesignColors}를 가리킨다.
+ * 두 값(youtube·danger)만 곡 화면 전용이라 대응 토큰이 없어 리터럴로 둔다.
+ */
 export const SongUi = {
-  accent: "#E8825A",
-  text: "#3D2A1E",
-  textSecondary: "#A0705A",
-  textMuted: "#B08878",
-  textFaint: "#D4B09A",
-  cardBg: "#FFF8F4",
-  border: "#F0DDD0",
-  chipMetaBg: "#F1EFE8",
-  chipMetaText: "#5F5E5A",
+  accent: DesignColors.accent,
+  text: DesignColors.textPrimary,
+  textSecondary: DesignColors.textSecondary,
+  textMuted: DesignColors.textMuted,
+  textFaint: DesignColors.textFaint,
+  cardBg: DesignColors.bgCard,
+  border: DesignColors.bgBorder,
+  chipMetaBg: DesignColors.badgeNoneBg,
+  chipMetaText: DesignColors.badgeNoneText,
+  /** YouTube 링크 강조 — DesignColors에 대응 토큰 없는 곡 화면 전용 색 */
   youtube: "#C47A2A",
+  /** 곡 화면 삭제·해제 — 앱 공통 danger(#c62828)보다 부드러운 톤 */
   danger: "#B03050",
   screenBg: DesignColors.bg,
-  genderActiveBg: "#FFF0E8",
+  genderActiveBg: DesignColors.filterChipActiveBg,
 } as const;
 
 const READINESS_CHIP_STYLE: Record<
   SongReadiness,
   { border: string; bg: string; color: string }
 > = {
-  none: { border: "#5F5E5A", bg: "#F1EFE8", color: "#5F5E5A" },
-  can_full: { border: "#0F6E56", bg: "#E1F5EE", color: "#0F6E56" },
-  need_practice: { border: "#185FA5", bg: "#E6F1FB", color: "#185FA5" },
-  will_try: { border: "#993C1D", bg: "#FAECE7", color: "#993C1D" },
+  none: {
+    border: DesignColors.badgeNoneText,
+    bg: DesignColors.badgeNoneBg,
+    color: DesignColors.badgeNoneText,
+  },
+  can_full: {
+    border: DesignColors.badgeDoneText,
+    bg: DesignColors.badgeDoneBg,
+    color: DesignColors.badgeDoneText,
+  },
+  need_practice: {
+    border: DesignColors.badgePracText,
+    bg: DesignColors.badgePracBg,
+    color: DesignColors.badgePracText,
+  },
+  will_try: {
+    border: DesignColors.badgeTryText,
+    bg: DesignColors.badgeTryBg,
+    color: DesignColors.badgeTryText,
+  },
 };
 
 export function SongScreenHeader({
