@@ -1,7 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -9,7 +8,6 @@ import {
   FlatList,
   Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -17,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DesignColors } from "@/components/design/colors";
+import { EdgeFadeScroller } from "@/components/design/EdgeFadeScroller";
 import { MarqueeText } from "@/components/design/MarqueeText";
 import { ScreenTitle } from "@/components/design/ScreenTitle";
 import { logDebug } from "@/lib/debug-log-buffer";
@@ -36,7 +35,6 @@ import { loadSongs, saveSongs, type Song } from "@/lib/songs-storage";
 type ChartProvider = "tj" | "ky";
 type ChartCategoryId = "all" | TjChartStrType;
 
-const CATEGORY_SCROLL_EDGE_THRESHOLD = 8;
 const CATEGORY_FADE_WIDTH = 28;
 
 function getRankTextStyle(rankStr: string): {
@@ -73,77 +71,41 @@ function ChartCategoryScroller({
   categoryId: ChartCategoryId;
   onSelect: (id: ChartCategoryId) => void;
 }) {
-  const [scrollX, setScrollX] = useState(0);
-  const [viewportWidth, setViewportWidth] = useState(0);
-  const [contentWidth, setContentWidth] = useState(0);
-
-  const canScroll =
-    contentWidth > viewportWidth + CATEGORY_SCROLL_EDGE_THRESHOLD;
-  const showLeftFade = canScroll && scrollX > CATEGORY_SCROLL_EDGE_THRESHOLD;
-  const showRightFade =
-    canScroll &&
-    scrollX + viewportWidth <
-      contentWidth - CATEGORY_SCROLL_EDGE_THRESHOLD;
-
   return (
-    <View style={styles.categoryScroller}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        scrollEventThrottle={16}
-        onScroll={(e) => setScrollX(e.nativeEvent.contentOffset.x)}
-        onLayout={(e) => setViewportWidth(e.nativeEvent.layout.width)}
-        onContentSizeChange={(w) => setContentWidth(w)}
-        contentContainerStyle={styles.categoryScrollContent}
-      >
-        {TJ_CHART_CATEGORY_OPTIONS.map((opt) => {
-          const selected = categoryId === opt.id;
-          return (
-            <Pressable
-              key={String(opt.id)}
-              onPress={() => onSelect(opt.id)}
-              style={({ pressed }) => [
-                styles.categoryChip,
-                selected ? styles.categoryChipActive : styles.categoryChipInactive,
-                { opacity: pressed ? 0.85 : 1 },
+    <EdgeFadeScroller
+      fadeWidth={CATEGORY_FADE_WIDTH}
+      style={styles.categoryScroller}
+      contentContainerStyle={styles.categoryScrollContent}
+    >
+      {TJ_CHART_CATEGORY_OPTIONS.map((opt) => {
+        const selected = categoryId === opt.id;
+        return (
+          <Pressable
+            key={String(opt.id)}
+            onPress={() => onSelect(opt.id)}
+            style={({ pressed }) => [
+              styles.categoryChip,
+              selected ? styles.categoryChipActive : styles.categoryChipInactive,
+              { opacity: pressed ? 0.85 : 1 },
+            ]}
+            accessibilityRole="button"
+            accessibilityState={{ selected }}
+            accessibilityLabel={`${opt.label} 차트`}
+          >
+            <Text
+              style={[
+                styles.categoryChipLabel,
+                selected
+                  ? styles.categoryChipLabelActive
+                  : styles.categoryChipLabelInactive,
               ]}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              accessibilityLabel={`${opt.label} 차트`}
             >
-              <Text
-                style={[
-                  styles.categoryChipLabel,
-                  selected
-                    ? styles.categoryChipLabelActive
-                    : styles.categoryChipLabelInactive,
-                ]}
-              >
-                {opt.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-      {showLeftFade ? (
-        <LinearGradient
-          colors={[DesignColors.bg, "transparent"]}
-          start={{ x: 0, y: 0.5 }}
-          end={{ x: 1, y: 0.5 }}
-          style={[styles.categoryFade, styles.categoryFadeLeft]}
-          pointerEvents="none"
-        />
-      ) : null}
-      {showRightFade ? (
-        <LinearGradient
-          colors={["transparent", DesignColors.bg]}
-          start={{ x: 0, y: 0.5 }}
-          end={{ x: 1, y: 0.5 }}
-          style={[styles.categoryFade, styles.categoryFadeRight]}
-          pointerEvents="none"
-        />
-      ) : null}
-    </View>
+              {opt.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </EdgeFadeScroller>
   );
 }
 
@@ -743,19 +705,6 @@ const styles = StyleSheet.create({
   categoryChipLabelActive: {
     color: DesignColors.accent,
     fontWeight: "500",
-  },
-  categoryFade: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    width: CATEGORY_FADE_WIDTH,
-    zIndex: 1,
-  },
-  categoryFadeLeft: {
-    left: 0,
-  },
-  categoryFadeRight: {
-    right: 0,
   },
   periodText: {
     fontSize: 11,

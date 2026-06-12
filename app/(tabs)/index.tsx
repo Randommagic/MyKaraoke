@@ -1,7 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
-import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -11,7 +10,6 @@ import {
   Modal,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -25,6 +23,7 @@ import { Swipeable } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DesignColors } from "@/components/design/colors";
+import { EdgeFadeScroller } from "@/components/design/EdgeFadeScroller";
 import {
   useConfirm,
   type ConfirmFn,
@@ -85,7 +84,6 @@ const READINESS_FILTER_CHIPS: { value: ReadinessFilter; label: string }[] = [
   }),
 ];
 
-const FILTER_SCROLL_EDGE_THRESHOLD = 8;
 const FILTER_FADE_WIDTH = 36;
 
 function ReadinessFilterScroller({
@@ -97,117 +95,56 @@ function ReadinessFilterScroller({
   onSelectFilter: (value: ReadinessFilter) => void;
   counts: { all: number; by: Record<SongReadiness, number> };
 }) {
-  const [scrollX, setScrollX] = useState(0);
-  const [viewportWidth, setViewportWidth] = useState(0);
-  const [contentWidth, setContentWidth] = useState(0);
-
-  const canScroll = contentWidth > viewportWidth + FILTER_SCROLL_EDGE_THRESHOLD;
-  const showLeftFade = canScroll && scrollX > FILTER_SCROLL_EDGE_THRESHOLD;
-  const showRightFade =
-    canScroll &&
-    scrollX + viewportWidth < contentWidth - FILTER_SCROLL_EDGE_THRESHOLD;
-
   return (
-    <View style={styles.readinessFilterScroller}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        scrollEventThrottle={16}
-        onScroll={(e) => setScrollX(e.nativeEvent.contentOffset.x)}
-        onLayout={(e) => setViewportWidth(e.nativeEvent.layout.width)}
-        onContentSizeChange={(w) => setContentWidth(w)}
-        style={styles.readinessFilterScroll}
-        contentContainerStyle={styles.readinessFilterScrollContent}
-      >
-        {READINESS_FILTER_CHIPS.map((chip) => {
-          const selected = readinessFilter === chip.value;
-          const isAll = chip.value === "all";
-          const count = isAll
-            ? counts.all
-            : counts.by[chip.value as SongReadiness];
-          return (
-            <Pressable
-              key={chip.value}
-              onPress={() => onSelectFilter(chip.value)}
-              style={({ pressed }) => [
-                styles.readinessFilterTab,
-                selected && styles.readinessFilterTabActive,
-                { opacity: pressed ? 0.85 : 1 },
+    <EdgeFadeScroller
+      fadeWidth={FILTER_FADE_WIDTH}
+      showChevron
+      style={styles.readinessFilterScroller}
+      contentContainerStyle={styles.readinessFilterScrollContent}
+    >
+      {READINESS_FILTER_CHIPS.map((chip) => {
+        const selected = readinessFilter === chip.value;
+        const isAll = chip.value === "all";
+        const count = isAll
+          ? counts.all
+          : counts.by[chip.value as SongReadiness];
+        return (
+          <Pressable
+            key={chip.value}
+            onPress={() => onSelectFilter(chip.value)}
+            style={({ pressed }) => [
+              styles.readinessFilterTab,
+              selected && styles.readinessFilterTabActive,
+              { opacity: pressed ? 0.85 : 1 },
+            ]}
+          >
+            <Text
+              style={[
+                styles.readinessFilterTabLabel,
+                selected && styles.readinessFilterTabLabelActive,
+              ]}
+            >
+              {chip.label}
+            </Text>
+            <View
+              style={[
+                styles.readinessFilterCountBadge,
+                selected && styles.readinessFilterCountBadgeActive,
               ]}
             >
               <Text
                 style={[
-                  styles.readinessFilterTabLabel,
-                  selected && styles.readinessFilterTabLabelActive,
+                  styles.readinessFilterCountText,
+                  selected && styles.readinessFilterCountTextActive,
                 ]}
               >
-                {chip.label}
+                {count}
               </Text>
-              <View
-                style={[
-                  styles.readinessFilterCountBadge,
-                  selected && styles.readinessFilterCountBadgeActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.readinessFilterCountText,
-                    selected && styles.readinessFilterCountTextActive,
-                  ]}
-                >
-                  {count}
-                </Text>
-              </View>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-      {showLeftFade ? (
-        <>
-          <LinearGradient
-            colors={[DesignColors.bg, "transparent"]}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            style={[styles.readinessFilterFade, styles.readinessFilterFadeLeft]}
-            pointerEvents="none"
-          />
-          <Text
-            style={[
-              styles.readinessFilterChevron,
-              styles.readinessFilterChevronLeft,
-              { color: DesignColors.textMuted },
-            ]}
-            pointerEvents="none"
-          >
-            ‹
-          </Text>
-        </>
-      ) : null}
-      {showRightFade ? (
-        <>
-          <LinearGradient
-            colors={["transparent", DesignColors.bg]}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            style={[
-              styles.readinessFilterFade,
-              styles.readinessFilterFadeRight,
-            ]}
-            pointerEvents="none"
-          />
-          <Text
-            style={[
-              styles.readinessFilterChevron,
-              styles.readinessFilterChevronRight,
-              { color: DesignColors.textMuted },
-            ]}
-            pointerEvents="none"
-          >
-            ›
-          </Text>
-        </>
-      ) : null}
-    </View>
+            </View>
+          </Pressable>
+        );
+      })}
+    </EdgeFadeScroller>
   );
 }
 
@@ -1245,44 +1182,12 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   readinessFilterScroller: {
-    position: "relative",
     marginBottom: 0,
-  },
-  readinessFilterScroll: {
-    flexGrow: 0,
   },
   readinessFilterScrollContent: {
     flexDirection: "row",
     alignItems: "flex-end",
     paddingRight: 4,
-  },
-  readinessFilterFade: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    width: FILTER_FADE_WIDTH,
-    zIndex: 1,
-  },
-  readinessFilterFadeLeft: {
-    left: 0,
-  },
-  readinessFilterFadeRight: {
-    right: 0,
-  },
-  readinessFilterChevron: {
-    position: "absolute",
-    top: "50%",
-    marginTop: -11,
-    fontSize: 22,
-    lineHeight: 22,
-    fontWeight: "600",
-    zIndex: 2,
-  },
-  readinessFilterChevronLeft: {
-    left: 6,
-  },
-  readinessFilterChevronRight: {
-    right: 6,
   },
   readinessFilterTab: {
     flexDirection: "row",
