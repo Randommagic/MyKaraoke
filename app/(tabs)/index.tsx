@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
-  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -18,6 +17,7 @@ import DraggableFlatList, {
 import { Swipeable } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { AppModal } from "@/components/design/AppModal";
 import { Button } from "@/components/design/Button";
 import { DesignColors } from "@/components/design/colors";
 import { EdgeFadeScroller } from "@/components/design/EdgeFadeScroller";
@@ -527,20 +527,17 @@ export default function HomeScreen() {
         onAddFromYoutube={() => setYoutubeImportVisible(true)}
       />
 
-      <Modal
+      <AppModal
         visible={modalSongId === CREATE_MODAL_ID}
-        animationType="fade"
-        transparent
-        onRequestClose={closeModal}
+        onClose={closeModal}
+        rootStyle={styles.createModalRoot}
+        cardStyle={styles.createModalCard}
       >
-        <View style={styles.modalRoot}>
-          <Pressable style={styles.modalBackdrop} onPress={closeModal} />
-          <View style={styles.modalCard}>
-            <ThemedText type="subtitle" style={styles.modalTitle}>
-              새 곡 추가
-            </ThemedText>
+        <ThemedText type="subtitle" style={styles.modalTitle}>
+          새 곡 추가
+        </ThemedText>
 
-            <KeyboardAwareScrollView
+        <KeyboardAwareScrollView
               fill={false}
               style={{ maxHeight: modalScrollMaxHeight }}
               extraBottomPadding={16}
@@ -586,9 +583,7 @@ export default function HomeScreen() {
               <FieldLabel>메모</FieldLabel>
               <MemoField value={draftMemo} onChangeText={setDraftMemo} />
             </KeyboardAwareScrollView>
-          </View>
-        </View>
-      </Modal>
+      </AppModal>
 
       <YoutubeImportModal
         visible={youtubeImportVisible}
@@ -725,23 +720,13 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
     flexGrow: 1,
   },
-  modalRoot: {
-    flex: 1,
-    justifyContent: "center",
+  createModalRoot: {
     paddingHorizontal: 20,
   },
-  modalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: DesignColors.scrim,
-  },
-  modalCard: {
-    borderRadius: 16,
-    padding: 20,
+  createModalCard: {
     maxWidth: 480,
-    width: "100%",
-    alignSelf: "center",
     maxHeight: "92%",
-    backgroundColor: DesignColors.bgCard,
+    paddingVertical: 20,
   },
   modalTitle: {
     marginBottom: 16,
