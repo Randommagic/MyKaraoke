@@ -28,19 +28,19 @@ import {
 import { ScreenTitle } from "@/components/design/ScreenTitle";
 import { Toast, useToast } from "@/components/design/Toast";
 import { SwipeableSongRow } from "@/components/home/SwipeableSongRow";
+import { SongBasicFields, TransposeStepper } from "@/components/song/SongForm";
+import {
+  FieldLabel,
+  GenderKeyRow,
+  ReadinessChipRow,
+} from "@/components/song/song-screen-ui";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { YoutubeImportModal } from "@/components/youtube-import-modal";
 import { usePendingYoutubeShareUrl } from "@/components/youtube-share-intent-provider";
 import { logDebug } from "@/lib/debug-log-buffer";
 import { UI_STRINGS } from "@/lib/ui-strings";
-import {
-  formatTranspose,
-  GENDER_OPTIONS,
-  localYmd,
-  READINESS_VISUAL,
-  sanitizeKaraokeDigits,
-} from "@/lib/song-form-helpers";
+import { localYmd, sanitizeKaraokeDigits } from "@/lib/song-form-helpers";
 import {
   clampSongMemo,
   createSongId,
@@ -303,10 +303,6 @@ export default function HomeScreen() {
     persist,
     songs,
   ]);
-
-  const bumpTranspose = useCallback((delta: number) => {
-    setDraftTranspose((v) => Math.max(-12, Math.min(12, v + delta)));
-  }, []);
 
   const showReorderDisabledToast = useCallback(() => {
     toast.show("순서 변경은 전체 보기에서만 가능해요");
@@ -661,160 +657,32 @@ export default function HomeScreen() {
                 </View>
               }
             >
-              <ThemedText style={styles.fieldLabel}>노래 제목</ThemedText>
-              <KeyboardAwareField>
-                <TextInput
-                  value={draftTitle}
-                  onChangeText={setDraftTitle}
-                  placeholder="제목"
-                  placeholderTextColor={DesignColors.textMuted}
-                  style={[styles.modalInput, inputSurfaceStyle]}
-                  autoFocus
-                />
-              </KeyboardAwareField>
+              <SongBasicFields
+                title={draftTitle}
+                onTitleChange={setDraftTitle}
+                artist={draftArtist}
+                onArtistChange={setDraftArtist}
+                tjNumber={draftTjNumber}
+                onTjNumberChange={setDraftTjNumber}
+                kyNumber={draftKyNumber}
+                onKyNumberChange={setDraftKyNumber}
+                autoFocusTitle
+              />
 
-              <ThemedText style={styles.fieldLabel}>가수</ThemedText>
-              <KeyboardAwareField>
-                <TextInput
-                  value={draftArtist}
-                  onChangeText={setDraftArtist}
-                  placeholder="가수명"
-                  placeholderTextColor={DesignColors.textMuted}
-                  style={[styles.modalInput, inputSurfaceStyle]}
-                />
-              </KeyboardAwareField>
+              <FieldLabel>남/여 키</FieldLabel>
+              <GenderKeyRow value={draftGender} onChange={setDraftGender} />
 
-              <ThemedText style={styles.fieldLabel}>곡 번호</ThemedText>
-              <View style={styles.modalNumberRow}>
-                <View style={styles.modalNumberCol}>
-                  <ThemedText style={styles.modalNumberBrand}>태진</ThemedText>
-                  <KeyboardAwareField>
-                    <TextInput
-                      value={draftTjNumber}
-                      onChangeText={(text) =>
-                        setDraftTjNumber(sanitizeKaraokeDigits(text))
-                      }
-                      placeholder="번호"
-                      placeholderTextColor={DesignColors.textMuted}
-                      keyboardType="number-pad"
-                      maxLength={6}
-                      style={[
-                        styles.modalInput,
-                        inputSurfaceStyle,
-                        styles.modalNumberInput,
-                      ]}
-                    />
-                  </KeyboardAwareField>
-                </View>
-                <View style={styles.modalNumberCol}>
-                  <ThemedText style={styles.modalNumberBrand}>금영</ThemedText>
-                  <KeyboardAwareField>
-                    <TextInput
-                      value={draftKyNumber}
-                      onChangeText={(text) =>
-                        setDraftKyNumber(sanitizeKaraokeDigits(text))
-                      }
-                      placeholder="번호"
-                      placeholderTextColor={DesignColors.textMuted}
-                      keyboardType="number-pad"
-                      maxLength={6}
-                      style={[
-                        styles.modalInput,
-                        inputSurfaceStyle,
-                        styles.modalNumberInput,
-                      ]}
-                    />
-                  </KeyboardAwareField>
-                </View>
-              </View>
+              <FieldLabel>준비도</FieldLabel>
+              <ReadinessChipRow
+                value={draftReadiness}
+                onChange={setDraftReadiness}
+              />
 
-              <ThemedText style={styles.fieldLabel}>남/여 키</ThemedText>
-              <View style={styles.segmentRow}>
-                {GENDER_OPTIONS.map((opt) => {
-                  const selected = draftGender === opt.value;
-                  return (
-                    <Pressable
-                      key={opt.value}
-                      onPress={() => setDraftGender(opt.value)}
-                      style={[
-                        styles.segment,
-                        selected ? styles.segmentSelected : null,
-                      ]}
-                    >
-                      <ThemedText
-                        style={
-                          selected
-                            ? styles.segmentLabelSelected
-                            : styles.segmentLabel
-                        }
-                      >
-                        {opt.label}
-                      </ThemedText>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              <ThemedText style={styles.fieldLabel}>준비도</ThemedText>
-              <View style={styles.segmentRow}>
-                {SONG_READINESS_OPTIONS.map((opt) => {
-                  const selected = draftReadiness === opt.value;
-                  const rv = READINESS_VISUAL[opt.value];
-                  return (
-                    <Pressable
-                      key={opt.value}
-                      onPress={() => setDraftReadiness(opt.value)}
-                      style={[
-                        styles.segment,
-                        styles.modalReadinessSegment,
-                        selected ? styles.segmentSelected : null,
-                      ]}
-                    >
-                      <Ionicons name={rv.icon} size={20} color={rv.color} />
-                      <ThemedText
-                        style={[
-                          styles.segmentReadinessLabel,
-                          selected
-                            ? styles.segmentLabelSelected
-                            : styles.segmentLabel,
-                        ]}
-                        numberOfLines={2}
-                      >
-                        {opt.label}
-                      </ThemedText>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              <ThemedText style={styles.fieldLabel}>
-                음정 (키 업/다운)
-              </ThemedText>
-              <View style={styles.transposeRow}>
-                <Pressable
-                  onPress={() => bumpTranspose(-1)}
-                  style={styles.stepBtn}
-                >
-                  <ThemedText type="defaultSemiBold">−</ThemedText>
-                </Pressable>
-                <View style={styles.transposeValue}>
-                  <ThemedText
-                    type="defaultSemiBold"
-                    style={{ textAlign: "center" }}
-                  >
-                    {formatTranspose(draftTranspose)}
-                  </ThemedText>
-                  <ThemedText style={styles.transposeHint}>
-                    반음 ±12까지
-                  </ThemedText>
-                </View>
-                <Pressable
-                  onPress={() => bumpTranspose(1)}
-                  style={styles.stepBtn}
-                >
-                  <ThemedText type="defaultSemiBold">+</ThemedText>
-                </Pressable>
-              </View>
+              <FieldLabel>음정 (키 업/다운)</FieldLabel>
+              <TransposeStepper
+                value={draftTranspose}
+                onChange={setDraftTranspose}
+              />
 
               <ThemedText style={styles.fieldLabel}>메모</ThemedText>
               <KeyboardAwareField>
@@ -1061,22 +929,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 14,
   },
-  modalNumberRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 14,
-  },
-  modalNumberCol: {
-    flex: 1,
-  },
-  modalNumberBrand: {
-    fontSize: 13,
-    fontWeight: "600",
-    marginBottom: 6,
-  },
-  modalNumberInput: {
-    marginBottom: 0,
-  },
   modalMemoInput: {
     minHeight: 88,
     paddingTop: 12,
@@ -1087,64 +939,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: DesignColors.textFaint,
     marginBottom: 14,
-  },
-  segmentRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 14,
-  },
-  segment: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: "center",
-    borderColor: DesignColors.bgBorder,
-  },
-  segmentSelected: {
-    borderColor: DesignColors.accent,
-    backgroundColor: `${DesignColors.accent}22`,
-  },
-  segmentLabel: {
-    fontWeight: "500",
-    color: DesignColors.textPrimary,
-  },
-  segmentLabelSelected: {
-    fontWeight: "700",
-    color: DesignColors.accent,
-  },
-  segmentReadinessLabel: {
-    marginTop: 6,
-    fontSize: 11,
-    textAlign: "center",
-  },
-  modalReadinessSegment: {
-    justifyContent: "center",
-    minHeight: 76,
-    paddingVertical: 8,
-  },
-  transposeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 20,
-  },
-  stepBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DesignColors.bgBorder,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  transposeValue: {
-    flex: 1,
-  },
-  transposeHint: {
-    color: DesignColors.textMuted,
-    fontSize: 12,
-    textAlign: "center",
   },
   modalCancelLabel: {
     color: DesignColors.textMuted,
