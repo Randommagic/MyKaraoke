@@ -1,6 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -14,10 +12,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ChartModalSongPreview } from "@/components/chart/ChartModalSongPreview";
+import { ChartRow } from "@/components/chart/ChartRow";
 import { Button } from "@/components/design/Button";
 import { DesignColors } from "@/components/design/colors";
 import { EdgeFadeScroller } from "@/components/design/EdgeFadeScroller";
-import { MarqueeText } from "@/components/design/MarqueeText";
 import { ScreenTitle } from "@/components/design/ScreenTitle";
 import { logDebug } from "@/lib/debug-log-buffer";
 import { sanitizeKaraokeDigits } from "@/lib/song-form-helpers";
@@ -37,33 +36,6 @@ type ChartProvider = "tj" | "ky";
 type ChartCategoryId = "all" | TjChartStrType;
 
 const CATEGORY_FADE_WIDTH = 28;
-
-function getRankTextStyle(rankStr: string): {
-  fontSize: number;
-  color: string;
-  fontWeight: "600" | "500";
-} {
-  const n = Number.parseInt(rankStr.trim(), 10);
-  if (n === 1) {
-    return {
-      fontSize: 17,
-      color: DesignColors.accent,
-      fontWeight: "600",
-    };
-  }
-  if (n === 2) {
-    return {
-      fontSize: 16,
-      color: DesignColors.chartRank2,
-      fontWeight: "600",
-    };
-  }
-  return {
-    fontSize: 14,
-    color: DesignColors.textMuted,
-    fontWeight: "500",
-  };
-}
 
 function ChartCategoryScroller({
   categoryId,
@@ -114,131 +86,6 @@ function chartCategoryToStrType(
   categoryId: ChartCategoryId,
 ): TjChartStrType | undefined {
   return categoryId === "all" ? undefined : categoryId;
-}
-
-function ChartModalSongPreview({
-  title,
-  artist,
-  tjPro,
-  imageUri,
-}: {
-  title: string;
-  artist: string;
-  tjPro?: string | number;
-  imageUri?: string | null;
-}) {
-  const uri = imageUri?.trim();
-  const displayTitle = title.trim() || "(제목 없음)";
-  const displayArtist = artist.trim();
-  const tj = tjPro ? sanitizeKaraokeDigits(String(tjPro)) : "";
-
-  return (
-    <View style={styles.modalSongPreview}>
-      {uri ? (
-        <Image
-          source={{ uri }}
-          style={styles.modalSongThumb}
-          contentFit="cover"
-          accessibilityIgnoresInvertColors
-        />
-      ) : (
-        <View style={[styles.modalSongThumb, styles.thumbPlaceholder]}>
-          <Ionicons
-            name="musical-notes"
-            size={20}
-            color={DesignColors.textFaint}
-          />
-        </View>
-      )}
-      <View style={styles.modalSongText}>
-        <Text style={styles.modalSongTitle} numberOfLines={2}>
-          {displayTitle}
-        </Text>
-        {displayArtist ? (
-          <Text style={styles.modalSongArtist} numberOfLines={1}>
-            {displayArtist}
-          </Text>
-        ) : null}
-        {tj ? (
-          <View style={styles.modalTjPill}>
-            <Text style={styles.modalTjPillLabel}>TJ {tj}</Text>
-          </View>
-        ) : null}
-      </View>
-    </View>
-  );
-}
-
-function ChartRow({
-  item,
-  isInList,
-  onPress,
-}: {
-  item: TjTopChartSongItem;
-  isInList: boolean;
-  onPress: () => void;
-}) {
-  const uri = item.imgthumb_path?.trim();
-  const rankLabel = item.rank?.trim() || "—";
-  const rankStyle = getRankTextStyle(rankLabel);
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.row,
-        { opacity: pressed ? 0.75 : 1 },
-      ]}
-      accessibilityRole="button"
-      accessibilityLabel={`${rankLabel}위 ${item.indexTitle} ${item.indexSong}${isInList ? ", 이미 내 리스트에 있음" : ""}, 차트에서 선택`}
-    >
-      <View style={styles.rankCol}>
-        <Text
-          style={[styles.rankText, rankStyle]}
-          numberOfLines={1}
-        >
-          {rankLabel}
-        </Text>
-      </View>
-      {uri ? (
-        <Image
-          source={{ uri }}
-          style={styles.thumb}
-          contentFit="cover"
-          accessibilityIgnoresInvertColors
-        />
-      ) : (
-        <View style={[styles.thumb, styles.thumbPlaceholder]}>
-          <Ionicons
-            name="musical-notes"
-            size={20}
-            color={DesignColors.textFaint}
-          />
-        </View>
-      )}
-      <View style={styles.rowText}>
-        <MarqueeText
-          text={item.indexTitle}
-          color={DesignColors.textPrimary}
-          style={styles.chartTitle}
-        />
-        <Text style={styles.artist} numberOfLines={1}>
-          {item.indexSong}
-        </Text>
-      </View>
-      {isInList ? (
-        <View
-          style={styles.inListBadge}
-          accessibilityLabel="내 리스트에 추가됨"
-        >
-          <Ionicons
-            name="checkmark"
-            size={16}
-            color={DesignColors.inListCheck}
-          />
-        </View>
-      ) : null}
-    </Pressable>
-  );
 }
 
 export default function PopularChartScreen() {
@@ -691,59 +538,6 @@ const styles = StyleSheet.create({
   listContent: {
     paddingBottom: 24,
   },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 11,
-    borderBottomWidth: 1,
-    borderBottomColor: DesignColors.listDivider,
-    gap: 12,
-  },
-  rankCol: {
-    width: 28,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  rankText: {
-    fontVariant: ["tabular-nums"],
-  },
-  thumb: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-    backgroundColor: DesignColors.bgCard,
-  },
-  thumbPlaceholder: {
-    backgroundColor: DesignColors.bgCard,
-    borderWidth: 1,
-    borderColor: DesignColors.bgBorder,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  rowText: {
-    flex: 1,
-    minWidth: 0,
-    gap: 2,
-  },
-  chartTitle: {
-    fontSize: 14,
-    fontWeight: "500",
-    lineHeight: 20,
-  },
-  artist: {
-    fontSize: 12,
-    color: DesignColors.textSecondary,
-    lineHeight: 16,
-  },
-  inListBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: DesignColors.inListBadgeBg,
-    justifyContent: "center",
-    alignItems: "center",
-  },
   modalRoot: {
     flex: 1,
     justifyContent: "center",
@@ -777,54 +571,6 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     color: DesignColors.textSecondary,
     marginBottom: 16,
-  },
-  modalSongPreview: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-    backgroundColor: DesignColors.inputSurface,
-    borderWidth: 1,
-    borderColor: DesignColors.bgBorder,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 20,
-  },
-  modalSongThumb: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
-    backgroundColor: DesignColors.bgCard,
-  },
-  modalSongText: {
-    flex: 1,
-    minWidth: 0,
-    gap: 4,
-  },
-  modalSongTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    lineHeight: 21,
-    color: DesignColors.textPrimary,
-    letterSpacing: -0.2,
-  },
-  modalSongArtist: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: DesignColors.textSecondary,
-  },
-  modalTjPill: {
-    alignSelf: "flex-start",
-    marginTop: 2,
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    backgroundColor: DesignColors.filterChipActiveBg,
-  },
-  modalTjPillLabel: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: DesignColors.accent,
-    letterSpacing: 0.2,
   },
   modalActions: {
     flexDirection: "row",
