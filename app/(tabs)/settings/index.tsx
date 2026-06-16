@@ -1,18 +1,19 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DesignColors } from "@/components/design/colors";
 import { useConfirm } from "@/components/design/confirm-dialog-context";
 import { ScreenTitle } from "@/components/design/ScreenTitle";
-import { useOnboarding } from "@/components/onboarding/OnboardingProvider";
+import { HelpSheet } from "@/components/onboarding/HelpSheet";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { formatAppVersionLabel, getAppInfo } from "@/lib/app-info";
 import { logDebug } from "@/lib/debug-log-buffer";
 import { resetAllSongs } from "@/lib/songs-storage";
+import { UI_STRINGS } from "@/lib/ui-strings";
 
 type SettingsMenuItem = {
   key: string;
@@ -29,7 +30,7 @@ const SECRET_LOG_TAP_WINDOW_MS = 700;
 export default function SettingsScreen() {
   const confirm = useConfirm();
   const router = useRouter();
-  const { showOnboarding } = useOnboarding();
+  const [helpVisible, setHelpVisible] = useState(false);
   const insets = useSafeAreaInsets();
   const appInfo = useMemo(() => getAppInfo(), []);
   const versionLabel = useMemo(() => formatAppVersionLabel(appInfo), [appInfo]);
@@ -38,9 +39,9 @@ export default function SettingsScreen() {
     () => [
       {
         key: "onboarding",
-        label: "도움말 다시 보기",
+        label: UI_STRINGS.onboarding.menuLabel,
         icon: "help-circle-outline",
-        onPress: showOnboarding,
+        onPress: () => setHelpVisible(true),
       },
       {
         key: "backup",
@@ -50,7 +51,7 @@ export default function SettingsScreen() {
         href: "/settings/backup",
       },
     ],
-    [showOnboarding],
+    [],
   );
 
   const secretLogTapRef = useRef({ count: 0, lastAt: 0 });
@@ -65,7 +66,7 @@ export default function SettingsScreen() {
     state.count += 1;
     if (state.count >= SECRET_LOG_TAP_COUNT) {
       state.count = 0;
-      router.push("/settings/log");
+      router.push("/settings/dev");
     }
   }, [router]);
 
@@ -184,6 +185,8 @@ export default function SettingsScreen() {
           <ThemedText style={styles.infoValue}>{versionLabel}</ThemedText>
         </View>
       </View>
+
+      <HelpSheet visible={helpVisible} onClose={() => setHelpVisible(false)} />
     </ThemedView>
   );
 }

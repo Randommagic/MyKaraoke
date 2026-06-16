@@ -26,7 +26,9 @@ import { KeyboardAwareScrollView } from "@/components/design/keyboard-aware-scro
 import { ScreenTitle } from "@/components/design/ScreenTitle";
 import { Toast, useToast } from "@/components/design/Toast";
 import { AddFab } from "@/components/home/AddFab";
+import { EmptyState } from "@/components/home/EmptyState";
 import { SwipeableSongRow } from "@/components/home/SwipeableSongRow";
+import { SwipeDemoBanner } from "@/components/home/SwipeDemoBanner";
 import {
   MemoField,
   SongBasicFields,
@@ -41,6 +43,8 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { YoutubeImportModal } from "@/components/youtube-import-modal";
 import { usePendingYoutubeShareUrl } from "@/components/youtube-share-intent-provider";
+import { readinessToDesignStatus } from "@/components/design/map-song";
+import { loadHasSeenSwipeHint, setSwipeHintSeen } from "@/lib/app-prefs";
 import { logDebug } from "@/lib/debug-log-buffer";
 import { UI_STRINGS } from "@/lib/ui-strings";
 import { localYmd, sanitizeKaraokeDigits } from "@/lib/song-form-helpers";
@@ -147,6 +151,8 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
+  /** null=로딩 중, false=아직 안 봄(데모 표시 대상), true=봄 */
+  const [hasSeenSwipeHint, setHasSeenSwipeHint] = useState<boolean | null>(null);
   const [modalSongId, setModalSongId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
   const [draftArtist, setDraftArtist] = useState("");
@@ -230,6 +236,18 @@ export default function HomeScreen() {
       cancelled = true;
     };
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      void loadHasSeenSwipeHint().then((seen) => {
+        if (!cancelled) setHasSeenSwipeHint(seen);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, []),
+  );
 
   /** 다른 탭 갔다 오면 디스크 기준으로 다시 맞춤 (상태·화면 불일치 완화) */
   useFocusEffect(
@@ -323,8 +341,15 @@ export default function HomeScreen() {
     });
   }, []);
 
+  /** 스와이프 힌트를 본 것으로 처리 (데모 완료·닫기·실제 스와이프 시) */
+  const markSwipeHintSeen = useCallback(() => {
+    setHasSeenSwipeHint(true);
+    void setSwipeHintSeen();
+  }, []);
+
   const toggleSungToday = useCallback(
     async (songId: string) => {
+      markSwipeHintSeen();
       const today = localYmd(new Date());
       const next = songs.map((s) => {
         if (s.id !== songId) return s;
@@ -340,11 +365,12 @@ export default function HomeScreen() {
         logDebug("[home] 오늘 불렀음 저장 실패", "warn");
       }
     },
-    [persist, songs],
+    [markSwipeHintSeen, persist, songs],
   );
 
   const handleDeleteSong = useCallback(
     async (songId: string) => {
+      markSwipeHintSeen();
       const next = songs.filter((s) => s.id !== songId);
       try {
         await persist(next);
@@ -353,7 +379,7 @@ export default function HomeScreen() {
         logDebug("[home] 곡 삭제 저장 실패", "warn");
       }
     },
-    [persist, songs],
+    [markSwipeHintSeen, persist, songs],
   );
 
   const handleDragEnd = useCallback(
@@ -472,6 +498,9 @@ export default function HomeScreen() {
         />
       </View>
 
+      {songs.length === 0 ? (
+        <EmptyState />
+      ) : (
       <DraggableFlatList
         data={
           readinessFilter === "all" && searchQuery.length === 0
@@ -484,6 +513,25 @@ export default function HomeScreen() {
         contentContainerStyle={styles.listContent}
         activationDistance={12}
         removeClippedSubviews={false}
+        ListHeaderComponent={
+          hasSeenSwipeHint === false ? (
+            <SwipeDemoBanner
+              onDone={markSwipeHintSeen}
+              demoSong={
+                songs[0]
+                  ? {
+                      title: songs[0].title,
+                      artist: songs[0].artist,
+                      genderKey: songs[0].genderKey,
+                      readyStatus: readinessToDesignStatus(songs[0].readiness),
+                      keyOffset: songs[0].transposeSemitones,
+                      showKeyBadge: songs[0].transposeSemitones !== 0,
+                    }
+                  : undefined
+              }
+            />
+          ) : undefined
+        }
         ListEmptyComponent={
           <ThemedText style={styles.emptyListHint}>
             {readinessFilter === "all" && searchQuery.length === 0
@@ -518,6 +566,7 @@ export default function HomeScreen() {
           />
         )}
       />
+      )}
 
       <AddFab
         open={addMenuOpen}
@@ -525,6 +574,7 @@ export default function HomeScreen() {
         onAddManual={openCreateModal}
         onAddFromChart={() => router.push("/chart")}
         onAddFromYoutube={() => setYoutubeImportVisible(true)}
+        pulse={songs.length === 0}
       />
 
       <AppModal
