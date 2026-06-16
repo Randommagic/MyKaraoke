@@ -11,6 +11,7 @@ import {
   FlatList,
   ListRenderItem,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -193,11 +194,15 @@ export default function SettingsLogScreen() {
             <Text style={styles.rawPath} selectable numberOfLines={3}>
               {rawPathLabel}
             </Text>
-            <View style={styles.rawScroll}>
+            <ScrollView
+              style={styles.rawScroll}
+              nestedScrollEnabled
+              showsVerticalScrollIndicator
+            >
               <Text style={styles.rawContent} selectable>
                 {rawFormatted}
               </Text>
-            </View>
+            </ScrollView>
           </View>
         ) : null}
       </View>
