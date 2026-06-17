@@ -18,11 +18,13 @@ import { DesignColors } from "@/components/design/colors";
 import { KeyboardAwareField } from "@/components/design/keyboard-aware-scroll";
 import { ThemedText } from "@/components/themed-text";
 import { createSongFromYoutubeImport, type Song } from "@/lib/songs-storage";
+import { UI_STRINGS } from "@/lib/ui-strings";
 import {
   collectYoutubeVideoIdsFromSongs,
   loadYoutubeImportItems,
   sortYoutubeImportItemsByExisting,
   youtubeThumbnailUrlFromVideoId,
+  YoutubeImportError,
   type YoutubeImportItem,
 } from "@/lib/youtube-import";
 
@@ -47,6 +49,7 @@ export function YoutubeImportModal({
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [items, setItems] = useState<YoutubeImportItem[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -60,6 +63,7 @@ export function YoutubeImportModal({
     setUrl(initialUrl?.trim() ?? "");
     setLoading(false);
     setError(null);
+    setInfo(null);
     setItems([]);
     setSelected(new Set());
   }, [initialUrl, visible]);
@@ -74,6 +78,7 @@ export function YoutubeImportModal({
 
   const onFetch = useCallback(async () => {
     setError(null);
+    setInfo(null);
     setItems([]);
     setSelected(new Set());
     const trimmed = url.trim();
@@ -88,7 +93,11 @@ export function YoutubeImportModal({
       setItems(list);
       setSelected(new Set(selectableVideoIds(list)));
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (e instanceof YoutubeImportError && e.kind === "playlist_disabled") {
+        setInfo(UI_STRINGS.youtube.playlistDisabled);
+      } else {
+        setError(e instanceof Error ? e.message : String(e));
+      }
     } finally {
       setLoading(false);
     }
@@ -211,7 +220,7 @@ export function YoutubeImportModal({
           YouTube에서 가져오기
         </ThemedText>
         <ThemedText style={styles.hint}>
-          영상 또는 재생목록 URL을 넣고 불러오기를 누르세요.
+          영상 URL을 넣고 불러오기를 누르세요.
         </ThemedText>
 
         <View style={styles.urlInputRow}>
@@ -257,6 +266,9 @@ export function YoutubeImportModal({
 
         {error ? (
           <ThemedText style={styles.errorText}>{error}</ThemedText>
+        ) : null}
+        {info ? (
+          <ThemedText style={styles.infoText}>{info}</ThemedText>
         ) : null}
 
         {items.length > 0 ? (
@@ -430,6 +442,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginBottom: 8,
     color: DesignColors.danger,
+  },
+  infoText: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 8,
+    color: DesignColors.textSecondary,
   },
   selectLinkLabel: {
     color: DesignColors.accent,

@@ -35,6 +35,10 @@ export const UI_STRINGS = {
     youtube: "YouTube에서",
     tj: "TJ에서",
   },
+  youtube: {
+    playlistDisabled:
+      "재생목록에서 곡 가져오기는 준비 중이에요. 지금은 영상 링크를 하나씩 추가해 주세요.",
+  },
   swipe: {
     sungToday: "오늘 불렀음",
     sungTodayCancel: "오늘 취소",

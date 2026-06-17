@@ -1,10 +1,22 @@
 import { Linking, Platform } from "react-native";
 
+/**
+ * 재생목록 import 활성화 여부.
+ * false = 모든 환경에서 비활성화 (v1.1에서 프록시 방식으로 재활성화 예정).
+ * true로 바꾸고 fetchPlaylistItems() 호출부를 프록시 URL로 교체하면 됨.
+ */
+export const PLAYLIST_IMPORT_ENABLED = false;
+
 /** 가져오기 실패 시 사용자용 메시지 */
 export class YoutubeImportError extends Error {
-  constructor(message: string) {
+  readonly kind: "playlist_disabled" | "general";
+  constructor(
+    message: string,
+    kind: "playlist_disabled" | "general" = "general",
+  ) {
     super(message);
     this.name = "YoutubeImportError";
+    this.kind = kind;
   }
 }
 
@@ -33,7 +45,10 @@ function extractVideoIdFromPath(pathname: string): string | null {
   return null;
 }
 
-/** 단일 영상 / 재생목록 URL 파싱 (`list=`가 있으면 재생목록 우선) */
+/**
+ * 단일 영상 / 재생목록 URL 파싱.
+ * watch?v=XXX&list=PLyyy 처럼 v=와 list=가 함께 있으면 단일 영상 우선.
+ */
 export function parseYoutubeInput(raw: string): ParsedYoutubeRef {
   const trimmed = raw.trim();
   if (!trimmed) return { kind: "invalid" };
@@ -44,12 +59,8 @@ export function parseYoutubeInput(raw: string): ParsedYoutubeRef {
     return { kind: "invalid" };
   }
 
-  const list = url.searchParams.get("list");
-  if (list && /^[\w-]+$/.test(list) && list.length >= 10) {
-    return { kind: "playlist", playlistId: list };
-  }
-
   const host = url.hostname.replace(/^www\./i, "");
+
   if (host === "youtu.be") {
     const id = url.pathname.replace(/^\//, "").split("/")[0]?.split("?")[0];
     if (id && VIDEO_ID_RE.test(id)) return { kind: "video", videoId: id };
@@ -57,11 +68,19 @@ export function parseYoutubeInput(raw: string): ParsedYoutubeRef {
   }
 
   if (host.includes("youtube.com")) {
+    // v= 우선: watch?v=XXX&list=PLyyy → 단일 영상
     const v = url.searchParams.get("v");
     if (v && VIDEO_ID_RE.test(v)) return { kind: "video", videoId: v };
+
     const fromPath = extractVideoIdFromPath(url.pathname);
     if (fromPath && VIDEO_ID_RE.test(fromPath))
       return { kind: "video", videoId: fromPath };
+
+    // 영상 ID 없을 때만 재생목록으로 판별
+    const list = url.searchParams.get("list");
+    if (list && /^[\w-]+$/.test(list) && list.length >= 10) {
+      return { kind: "playlist", playlistId: list };
+    }
   }
 
   return { kind: "invalid" };
@@ -299,7 +318,6 @@ export async function fetchYoutubeVideoOembed(
 
 async function fetchPlaylistPage(
   playlistId: string,
-  apiKey: string,
   pageToken?: string,
 ): Promise<{
   items: YoutubeImportItem[];
@@ -309,7 +327,6 @@ async function fetchPlaylistPage(
   u.searchParams.set("part", "snippet,contentDetails");
   u.searchParams.set("maxResults", "50");
   u.searchParams.set("playlistId", playlistId);
-  u.searchParams.set("key", apiKey);
   if (pageToken) u.searchParams.set("pageToken", pageToken);
 
   const res = await fetch(u.toString());
@@ -345,10 +362,9 @@ async function fetchPlaylistPage(
   return { items: out, nextPageToken: data.nextPageToken };
 }
 
-/** 재생목록: YouTube Data API v3 */
+/** 재생목록: YouTube Data API v3 (v1.1에서 프록시 방식으로 재활성화 예정) */
 export async function fetchPlaylistItems(
   playlistId: string,
-  apiKey: string,
   maxItems = 200,
 ): Promise<YoutubeImportItem[]> {
   const out: YoutubeImportItem[] = [];
@@ -356,7 +372,6 @@ export async function fetchPlaylistItems(
   while (out.length < maxItems) {
     const { items, nextPageToken } = await fetchPlaylistPage(
       playlistId,
-      apiKey,
       pageToken,
     );
     for (const row of items) {
@@ -368,13 +383,6 @@ export async function fetchPlaylistItems(
     pageToken = nextPageToken;
   }
   return out;
-}
-
-function getYoutubeDataApiKey(): string | null {
-  const fromEnv =
-    typeof process !== "undefined" &&
-    process.env.EXPO_PUBLIC_YOUTUBE_API_KEY?.trim();
-  return fromEnv || null;
 }
 
 /**
@@ -402,12 +410,15 @@ export async function loadYoutubeImportItems(
       ];
     }
 
-    const apiKey = getYoutubeDataApiKey();
-    if (!apiKey) {
-      throw new YoutubeImportError("재생목록을 지금 불러올 수 없습니다.");
+    // 재생목록 비활성화 (PLAYLIST_IMPORT_ENABLED = false 동안 항상 차단)
+    if (!PLAYLIST_IMPORT_ENABLED) {
+      throw new YoutubeImportError(
+        "재생목록 가져오기는 현재 지원하지 않습니다.",
+        "playlist_disabled",
+      );
     }
 
-    const items = await fetchPlaylistItems(parsed.playlistId, apiKey);
+    const items = await fetchPlaylistItems(parsed.playlistId);
     if (items.length === 0) {
       throw new YoutubeImportError(
         "재생목록에서 가져올 수 있는 공개 영상이 없습니다. 비공개 영상만 있을 수 있어요.",
