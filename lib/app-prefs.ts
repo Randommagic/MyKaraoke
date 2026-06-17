@@ -1,6 +1,6 @@
 /**
  * 앱 단순 환경설정 플래그 저장 (1회성 온보딩 상태 등).
- * onboarding-storage.ts와 동일한 패턴: web localStorage + native 파일.
+ * web: localStorage, native: expo-file-system 파일.
  */
 import * as FileSystem from "expo-file-system/legacy";
 import { Platform } from "react-native";

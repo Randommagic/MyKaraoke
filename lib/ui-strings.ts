@@ -51,7 +51,6 @@ export const UI_STRINGS = {
     emptyDesc: "아래 + 버튼을 눌러 첫 애창곡을 추가해보세요",
     /** 데모 예시 카드 배지 */
     example: "예시",
-    replay: "다시 보기",
     /** 도움말 시트 */
     sheetTitle: "노래 목록 다루기",
     swipeTitle: "카드를 좌우로 밀어보세요",

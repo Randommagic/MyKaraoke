@@ -189,13 +189,11 @@ export function SwipeHintDemo({
                 ) : null}
               </View>
             </View>
-            {!demoSong && (
-              <View style={styles.exampleChip}>
-                <Text style={styles.exampleChipText}>
-                  {UI_STRINGS.onboarding.example}
-                </Text>
-              </View>
-            )}
+            <View style={styles.exampleChip}>
+              <Text style={styles.exampleChipText}>
+                {UI_STRINGS.onboarding.example}
+              </Text>
+            </View>
           </Animated.View>
         );
       })()}

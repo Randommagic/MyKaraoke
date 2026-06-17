@@ -3,7 +3,7 @@
  * SwipeHintDemo를 감싸 제목·설명·닫기를 덧붙인다.
  */
 import { Ionicons } from "@expo/vector-icons";
-import { StyleSheet, Text, View, Pressable } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { DesignColors } from "@/components/design/colors";
 import { FontSize, FontWeight, Radius, Spacing } from "@/components/design/tokens";
@@ -25,6 +25,7 @@ export function SwipeDemoBanner({ onDone, demoSong }: { onDone: () => void; demo
           <Ionicons name="close" size={20} color={DesignColors.textSecondary} />
         </Pressable>
       </View>
+      <Text style={styles.desc}>{UI_STRINGS.onboarding.sheetSubtitle}</Text>
       <SwipeHintDemo autoPlay loop demoSong={demoSong} />
     </View>
   );
@@ -50,5 +51,11 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     fontWeight: FontWeight.semibold,
     color: DesignColors.textPrimary,
+  },
+  desc: {
+    fontSize: FontSize.sm,
+    lineHeight: 19,
+    color: DesignColors.textSecondary,
+    marginBottom: Spacing.lg,
   },
 });
