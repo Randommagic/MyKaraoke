@@ -29,6 +29,7 @@ import { ThemedView } from "@/components/themed-view";
 import { logDebug } from "@/lib/debug-log-buffer";
 import { UI_STRINGS } from "@/lib/ui-strings";
 import {
+  formatYmdDotted,
   getPrimarySungDate,
   isSungToday,
   localYmd,
@@ -51,13 +52,6 @@ import {
   songUsesYoutubeKaraokeSearch,
 } from "@/lib/song-youtube";
 
-function formatLastSungLabel(sungDates: string[]): string {
-  const primary = getPrimarySungDate(sungDates);
-  if (!primary) return "없음";
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(primary);
-  if (m) return `${m[1]}.${m[2]}.${m[3]}`;
-  return primary;
-}
 
 export default function SongDetailScreen() {
   const confirm = useConfirm();
@@ -413,7 +407,7 @@ export default function SongDetailScreen() {
 
           <View style={styles.sungRow}>
             <Text style={styles.sungLabel}>
-              마지막으로 부른 날: {formatLastSungLabel(sungDates)}
+              마지막으로 부른 날: {formatYmdDotted(getPrimarySungDate(sungDates)) || "없음"}
             </Text>
             <Pressable
               onPress={() => void markSungToday()}

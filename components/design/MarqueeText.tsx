@@ -89,9 +89,8 @@ export function MarqueeText({ text, color: colorProp, style }: Props) {
   }, [text, containerW, textW, anim]);
 
   const measured = textW != null;
-  const needsMarquee = measured && containerW > 0 && textW! > containerW;
-  const marqueeTextWidthStyle =
-    measured && needsMarquee ? { width: textW! } : null;
+  const needsMarquee = textW !== null && containerW > 0 && textW > containerW;
+  const marqueeTextWidthStyle = needsMarquee && textW !== null ? { width: textW } : null;
 
   return (
     <View

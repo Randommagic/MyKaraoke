@@ -363,9 +363,10 @@ export default function HomeScreen() {
         logDebug(`[home] 오늘 불렀음 토글: ${songId}`, "info");
       } catch {
         logDebug("[home] 오늘 불렀음 저장 실패", "warn");
+        toast.show("저장에 실패했어요. 다시 시도해 주세요.");
       }
     },
-    [markSwipeHintSeen, persist, songs],
+    [markSwipeHintSeen, persist, songs, toast],
   );
 
   const handleDeleteSong = useCallback(
@@ -377,9 +378,10 @@ export default function HomeScreen() {
         logDebug(`[home] 곡 삭제: ${songId}`, "info");
       } catch {
         logDebug("[home] 곡 삭제 저장 실패", "warn");
+        toast.show("삭제에 실패했어요. 다시 시도해 주세요.");
       }
     },
-    [markSwipeHintSeen, persist, songs],
+    [markSwipeHintSeen, persist, songs, toast],
   );
 
   const handleDragEnd = useCallback(
@@ -430,6 +432,8 @@ export default function HomeScreen() {
       </ThemedView>
     );
   }
+
+  const isUnfiltered = readinessFilter === "all" && searchQuery.length === 0;
 
   return (
     <ThemedView style={[styles.screen, { paddingTop: insets.top }]}>
@@ -503,7 +507,7 @@ export default function HomeScreen() {
       ) : (
       <DraggableFlatList
         data={
-          readinessFilter === "all" && searchQuery.length === 0
+          isUnfiltered
             ? songs
             : filteredSongs
         }
@@ -534,13 +538,13 @@ export default function HomeScreen() {
         }
         ListEmptyComponent={
           <ThemedText style={styles.emptyListHint}>
-            {readinessFilter === "all" && searchQuery.length === 0
+            {isUnfiltered
               ? "등록된 곡이 없습니다.\n우하단 + 버튼에서 새 곡을 추가해 보세요."
               : "조건에 맞는 곡이 없습니다."}
           </ThemedText>
         }
         onDragEnd={({ data }) =>
-          readinessFilter === "all" && searchQuery.length === 0
+          isUnfiltered
             ? void handleDragEnd(data)
             : undefined
         }
@@ -560,7 +564,7 @@ export default function HomeScreen() {
             isActive={isActive}
             swipeEnabled
             dragReorderEnabled={
-              readinessFilter === "all" && searchQuery.length === 0
+              isUnfiltered
             }
             onDisabledDragAttempt={showReorderDisabledToast}
           />

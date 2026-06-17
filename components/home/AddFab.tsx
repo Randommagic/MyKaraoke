@@ -124,7 +124,7 @@ export function AddFab({
               accessibilityRole="menuitem"
               accessibilityLabel="YouTube에서 추가"
             >
-              <Ionicons name="logo-youtube" size={22} color="#FF0000" />
+              <Ionicons name="logo-youtube" size={22} color={DesignColors.youtube} />
               <ThemedText type="defaultSemiBold">YouTube에서 추가</ThemedText>
             </Pressable>
           </View>
@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
     borderColor: DesignColors.bgBorder,
     backgroundColor: DesignColors.bgCard,
     overflow: "hidden",
-    shadowColor: "#000",
+    shadowColor: DesignColors.textPrimary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.18,
     shadowRadius: 10,
@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 3,
     borderColor: DesignColors.bg,
-    shadowColor: "#000",
+    shadowColor: DesignColors.textPrimary,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.22,
     shadowRadius: 5,

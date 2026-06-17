@@ -76,6 +76,9 @@ export const DesignColors = {
   dateMonthBg: "#FFF0E8",
   dateMonthText: "#B08878",
 
+  /** 외부 서비스 브랜드 색상 */
+  youtube: "#FF0000",
+
   /** 스와이프 액션 (삭제·오늘 불렀음) */
   swipeDeleteBg: "#FACDCD",
   swipeDeleteText: "#8B2020",

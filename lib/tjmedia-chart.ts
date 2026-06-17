@@ -1,4 +1,4 @@
-import { sanitizeKaraokeDigits } from "@/lib/song-form-helpers";
+import { localYmd, sanitizeKaraokeDigits } from "@/lib/song-form-helpers";
 import { createSongId, type Song } from "@/lib/songs-storage";
 
 const TOP_AND_HOT_ENDPOINT = "https://www.tjmedia.com/legacy/api/topAndHot100";
@@ -53,13 +53,6 @@ export type TopAndHot100Query = {
   strType?: TjChartStrType;
 };
 
-function formatLocalYmd(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
 /** endDate = 오늘(로컬), startDate = 그로부터 2주 전 */
 export function buildDefaultTjTopAndHotQuery(
   strType?: TjChartStrType,
@@ -69,8 +62,8 @@ export function buildDefaultTjTopAndHotQuery(
   start.setDate(start.getDate() - 14);
   const base: TopAndHot100Query = {
     chartType: "TOP",
-    searchStartDate: formatLocalYmd(start),
-    searchEndDate: formatLocalYmd(end),
+    searchStartDate: localYmd(start),
+    searchEndDate: localYmd(end),
   };
   if (strType != null) {
     base.strType = strType;

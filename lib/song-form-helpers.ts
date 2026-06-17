@@ -88,6 +88,13 @@ export function daysSinceLastSung(ymd: string): number | null {
   return Math.floor((todayStart.getTime() - sungStart.getTime()) / 86400000);
 }
 
+/** YYYY-MM-DD → YYYY.MM.DD 변환 (파싱 불가 시 입력값 반환) */
+export function formatYmdDotted(ymd: string): string {
+  const s = ymd.trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  return m ? `${m[1]}.${m[2]}.${m[3]}` : s;
+}
+
 export function formatLastSungLine(ymd: string): string {
   const s = ymd.trim();
   if (!s) return "";
@@ -97,7 +104,7 @@ export function formatLastSungLine(ymd: string): string {
   const diffDays = daysSinceLastSung(s);
   if (diffDays === null) return `마지막: ${s}`;
 
-  const dotted = `${m[1]}.${m[2]}.${m[3]}`;
+  const dotted = formatYmdDotted(s);
   if (diffDays === 0) return `${UI_STRINGS.sungRecency.today} (${dotted})`;
   if (diffDays > 0) return `${diffDays}일 전 (${dotted})`;
   return `${-diffDays}일 후 (${dotted})`;
