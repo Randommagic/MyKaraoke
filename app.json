@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "MyKaraoke",
+    "name": "애창곡 수첩",
     "slug": "MyKaraoke",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "bundleIdentifier": "com.randommagic.MyKaraoke",
+      "bundleIdentifier": "com.randommagic.mykaraoke",
       "infoPlist": {
         "LSApplicationQueriesSchemes": ["youtube", "vnd.youtube"]
       }
@@ -24,7 +24,8 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.randommagic.MyKaraoke",
+      "package": "com.randommagic.mykaraoke",
+      "permissions": [],
       "queries": [
         {
           "package": "com.google.android.youtube"
@@ -55,7 +56,8 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "./plugins/withBlockedPermissions"
     ],
     "experiments": {
       "typedRoutes": true,

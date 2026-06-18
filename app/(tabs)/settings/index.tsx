@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Linking, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DesignColors } from "@/components/design/colors";
@@ -184,6 +184,16 @@ export default function SettingsScreen() {
           <ThemedText style={styles.infoLabel}>버전</ThemedText>
           <ThemedText style={styles.infoValue}>{versionLabel}</ThemedText>
         </View>
+        <View style={styles.infoDivider} />
+        <Pressable
+          onPress={() => void Linking.openURL("https://randommagic.github.io/mykaraoke/")}
+          style={({ pressed }) => [styles.infoRow, { opacity: pressed ? 0.6 : 1 }]}
+          accessibilityRole="link"
+          accessibilityLabel={UI_STRINGS.settings.privacyPolicy}
+        >
+          <ThemedText style={styles.infoLabel}>{UI_STRINGS.settings.privacyPolicy}</ThemedText>
+          <Ionicons name="open-outline" size={13} color={DesignColors.textSecondary} />
+        </Pressable>
       </View>
 
       <HelpSheet visible={helpVisible} onClose={() => setHelpVisible(false)} />
@@ -280,6 +290,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
+  },
+  infoDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: DesignColors.bgBorder,
   },
   infoLabel: {
     fontSize: 14,

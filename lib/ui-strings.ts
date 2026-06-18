@@ -62,6 +62,9 @@ export const UI_STRINGS = {
     tapHint: "카드를 누르면 상세정보가 열려요",
     dragHint: "핸들을 잡고 위아래로 옮기면 순서가 바뀌어요",
   },
+  settings: {
+    privacyPolicy: "개인정보 처리방침",
+  },
 } as const;
 
 export type SungRecencyLabel =
