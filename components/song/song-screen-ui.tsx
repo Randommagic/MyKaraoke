@@ -104,10 +104,10 @@ export function EditPillButton({ onPress }: { onPress: () => void }) {
         { opacity: pressed ? 0.85 : 1 },
       ]}
       accessibilityRole="button"
-      accessibilityLabel="편집"
+      accessibilityLabel="곡 정보 편집"
     >
       <Ionicons name="pencil-outline" size={14} color={SongUi.textSecondary} />
-      <Text style={headerStyles.editPillText}>편집</Text>
+      <Text style={headerStyles.editPillText}>곡 정보 편집</Text>
     </Pressable>
   );
 }

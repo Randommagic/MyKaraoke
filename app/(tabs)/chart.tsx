@@ -183,6 +183,10 @@ export default function PopularChartScreen() {
         });
       }
       setLoading(false);
+    }).catch(() => {
+      if (cancelled) return;
+      setError("차트를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      setLoading(false);
     });
 
     return () => {

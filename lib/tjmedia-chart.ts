@@ -1,3 +1,4 @@
+import { logDebug } from "@/lib/debug-log-buffer";
 import { localYmd, sanitizeKaraokeDigits } from "@/lib/song-form-helpers";
 import { createSongId, type Song } from "@/lib/songs-storage";
 
@@ -140,13 +141,7 @@ export function ensureTjChartLoaded(strType?: TjChartStrType): Promise<void> {
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      tjSessionCacheByKey.set(key, {
-        items: [],
-        error: msg,
-        searchStartDate: query.searchStartDate,
-        searchEndDate: query.searchEndDate,
-        strType,
-      });
+      logDebug(`[chart] TJ 차트 로드 실패 (${key}): ${msg}`, "error");
     } finally {
       tjSessionLoadByKey.delete(key);
     }
@@ -182,15 +177,22 @@ export async function fetchTopAndHot100(
   query: TopAndHot100Query,
 ): Promise<TjTopAndHot100Response> {
   const url = buildTopAndHotUrl(query);
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { Accept: "application/json" },
-  });
-  if (!res.ok) {
-    throw new Error(`TJ 차트 요청 실패 (${res.status} ${res.statusText})`);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      throw new Error(`TJ 차트 요청 실패 (${res.status} ${res.statusText})`);
+    }
+    const data = (await res.json()) as TjTopAndHot100Response;
+    return data;
+  } finally {
+    clearTimeout(timer);
   }
-  const data = (await res.json()) as TjTopAndHot100Response;
-  return data;
 }
 
 export function topChartItemsFromResponse(

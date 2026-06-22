@@ -190,7 +190,6 @@ export default function HomeScreen() {
         `[home] 목록 저장 실패: ${e instanceof Error ? e.message : String(e)}`,
         "error",
       );
-      console.error("[persist]", e);
       throw e;
     }
   }, []);
