@@ -2,6 +2,7 @@ import type { ReadyStatus, SongCardModel } from "@/components/design/types";
 import {
   formatSongListTitleLine,
   getPrimarySungDate,
+  YMD_STRICT_RE,
 } from "@/lib/song-form-helpers";
 import type { Song, SongReadiness } from "@/lib/songs-storage";
 
@@ -22,7 +23,7 @@ export function readinessToDesignStatus(
 
 function sungDateToIso(ymd: string): string | null {
   const s = ymd.trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  if (!YMD_STRICT_RE.test(s)) return null;
   return s;
 }
 

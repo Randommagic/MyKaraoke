@@ -2,7 +2,6 @@ import {
   createContext,
   useCallback,
   useContext,
-  useMemo,
   useState,
   type ReactNode,
 } from "react";
@@ -47,10 +46,8 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
     fn?.();
   }, [dismiss, options]);
 
-  const value = useMemo(() => confirm, [confirm]);
-
   return (
-    <ConfirmDialogContext.Provider value={value}>
+    <ConfirmDialogContext.Provider value={confirm}>
       {children}
       <ConfirmDialog
         visible={options != null}

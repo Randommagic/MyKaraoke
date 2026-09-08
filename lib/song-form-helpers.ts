@@ -25,6 +25,12 @@ export const READINESS_VISUAL: Record<
   will_try: { icon: "flag-outline", color: DesignColors.badgeTryText },
 };
 
+/** `YYYY-MM-DD` 완전 일치 검사용 (캡처 그룹 없음, `.test()`용) */
+export const YMD_STRICT_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** `YYYY-MM-DD` 파싱용 (년/월/일 캡처 그룹, `.exec()`용) */
+export const YMD_CAPTURE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
 export function formatTranspose(semitones: number): string {
   const t = Math.max(-12, Math.min(12, semitones));
   if (t === 0) return UI_STRINGS.key.original;
@@ -75,7 +81,7 @@ export function isSungToday(sungDates: string[]): boolean {
 export function daysSinceLastSung(ymd: string): number | null {
   const s = ymd.trim();
   if (!s) return null;
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  const m = YMD_CAPTURE_RE.exec(s);
   if (!m) return null;
   const y = Number(m[1]);
   const mon = Number(m[2]) - 1;
@@ -91,14 +97,14 @@ export function daysSinceLastSung(ymd: string): number | null {
 /** YYYY-MM-DD → YYYY.MM.DD 변환 (파싱 불가 시 입력값 반환) */
 export function formatYmdDotted(ymd: string): string {
   const s = ymd.trim();
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  const m = YMD_CAPTURE_RE.exec(s);
   return m ? `${m[1]}.${m[2]}.${m[3]}` : s;
 }
 
 export function formatLastSungLine(ymd: string): string {
   const s = ymd.trim();
   if (!s) return "";
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  const m = YMD_CAPTURE_RE.exec(s);
   if (!m) return `마지막: ${s}`;
 
   const diffDays = daysSinceLastSung(s);

@@ -1,5 +1,5 @@
 import { logDebug } from "@/lib/debug-log-buffer";
-import { localYmd, sanitizeKaraokeDigits } from "@/lib/song-form-helpers";
+import { localYmd, sanitizeKaraokeDigits, YMD_CAPTURE_RE } from "@/lib/song-form-helpers";
 import { createSongId, type Song } from "@/lib/songs-storage";
 
 const TOP_AND_HOT_ENDPOINT = "https://www.tjmedia.com/legacy/api/topAndHot100";
@@ -94,7 +94,7 @@ function tjChartCacheKey(strType?: TjChartStrType): string {
 
 /** `yyyy-mm-dd` → `yyyy.mm.dd` (표시용) */
 export function formatTjChartYmdDisplay(ymd: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim());
+  const m = YMD_CAPTURE_RE.exec(ymd.trim());
   if (!m) return ymd.trim();
   return `${m[1]}.${m[2]}.${m[3]}`;
 }

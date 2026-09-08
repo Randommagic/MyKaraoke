@@ -32,6 +32,8 @@ export function SongCard({
       onPress={onPress}
       activeOpacity={0.7}
       disabled={!onPress}
+      accessibilityRole="button"
+      accessibilityLabel={model.title}
     >
       {showDragHandle ? (
         <TouchableOpacity
