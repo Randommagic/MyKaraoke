@@ -104,10 +104,10 @@ export function EditPillButton({ onPress }: { onPress: () => void }) {
         { opacity: pressed ? 0.85 : 1 },
       ]}
       accessibilityRole="button"
-      accessibilityLabel="곡 정보 편집"
+      accessibilityLabel="편집"
     >
       <Ionicons name="pencil-outline" size={14} color={SongUi.textSecondary} />
-      <Text style={headerStyles.editPillText}>곡 정보 편집</Text>
+      <Text style={headerStyles.editPillText}>편집</Text>
     </Pressable>
   );
 }
@@ -132,48 +132,58 @@ export function ReadinessChipRow({
   value: SongReadiness;
   onChange: (v: SongReadiness) => void;
 }) {
+  // "미정"(none)은 선택지에서 제외 — 아무 칩도 고르지 않은 상태가 곧 미정.
+  const options = READINESS_SLIDER_ORDER.filter((key) => key !== "none");
+  const isUnset = value === "none";
+
   return (
-    <View style={readinessStyles.row}>
-      {READINESS_SLIDER_ORDER.map((key) => {
-        const selected = value === key;
-        const chip = READINESS_CHIP_STYLE[key];
-        const rv = READINESS_VISUAL[key];
-        const label =
-          SONG_READINESS_OPTIONS.find((o) => o.value === key)?.label ?? key;
-        return (
-          <Pressable
-            key={key}
-            onPress={() => onChange(key)}
-            style={({ pressed }) => [
-              readinessStyles.chip,
-              {
-                borderColor: selected ? chip.border : SongUi.border,
-                backgroundColor: selected ? chip.bg : SongUi.cardBg,
-                opacity: pressed ? 0.88 : 1,
-              },
-            ]}
-            accessibilityRole="button"
-            accessibilityState={{ selected }}
-            accessibilityLabel={label}
-          >
-            <Ionicons
-              name={rv.icon}
-              size={18}
-              color={selected ? chip.color : SongUi.textMuted}
-            />
-            <Text
-              style={[
-                readinessStyles.chipText,
-                { color: selected ? chip.color : SongUi.textSecondary },
-                selected ? readinessStyles.chipTextActive : null,
+    <View>
+      {isUnset ? (
+        <Text style={selectHintStyles.hint}>아래에서 선택하세요</Text>
+      ) : null}
+      <View style={readinessStyles.row}>
+        {options.map((key) => {
+          const selected = value === key;
+          const chip = READINESS_CHIP_STYLE[key];
+          const rv = READINESS_VISUAL[key];
+          const label =
+            SONG_READINESS_OPTIONS.find((o) => o.value === key)?.label ?? key;
+          return (
+            <Pressable
+              key={key}
+              // 선택된 칩을 다시 누르면 해제되어 미정(none)으로 복귀.
+              onPress={() => onChange(selected ? "none" : key)}
+              style={({ pressed }) => [
+                readinessStyles.chip,
+                {
+                  borderColor: selected ? chip.border : SongUi.border,
+                  backgroundColor: selected ? chip.bg : SongUi.cardBg,
+                  opacity: pressed ? 0.88 : 1,
+                },
               ]}
-              numberOfLines={1}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              accessibilityLabel={label}
             >
-              {label}
-            </Text>
-          </Pressable>
-        );
-      })}
+              <Ionicons
+                name={rv.icon}
+                size={18}
+                color={selected ? chip.color : SongUi.textMuted}
+              />
+              <Text
+                style={[
+                  readinessStyles.chipText,
+                  { color: selected ? chip.color : SongUi.textSecondary },
+                  selected ? readinessStyles.chipTextActive : null,
+                ]}
+                numberOfLines={1}
+              >
+                {label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
@@ -185,33 +195,45 @@ export function GenderKeyRow({
   value: SongGenderKey;
   onChange: (v: SongGenderKey) => void;
 }) {
+  // "미정"(unset)은 선택지에서 제외 — 아무 칩도 고르지 않은 상태가 곧 미정.
+  const options = GENDER_OPTIONS.filter((opt) => opt.value !== "unset");
+  const isUnset = value === "unset";
+
   return (
-    <View style={genderStyles.row}>
-      {GENDER_OPTIONS.map((opt) => {
-        const selected = value === opt.value;
-        return (
-          <Pressable
-            key={opt.value}
-            onPress={() => onChange(opt.value)}
-            style={({ pressed }) => [
-              genderStyles.btn,
-              selected ? genderStyles.btnActive : genderStyles.btnIdle,
-              { opacity: pressed ? 0.88 : 1 },
-            ]}
-            accessibilityRole="button"
-            accessibilityState={{ selected }}
-          >
-            <Text
-              style={[
-                genderStyles.btnText,
-                selected ? genderStyles.btnTextActive : genderStyles.btnTextIdle,
+    <View>
+      {isUnset ? (
+        <Text style={selectHintStyles.hint}>아래에서 선택하세요</Text>
+      ) : null}
+      <View style={genderStyles.row}>
+        {options.map((opt) => {
+          const selected = value === opt.value;
+          return (
+            <Pressable
+              key={opt.value}
+              // 선택된 칩을 다시 누르면 해제되어 미정(unset)으로 복귀.
+              onPress={() => onChange(selected ? "unset" : opt.value)}
+              style={({ pressed }) => [
+                genderStyles.btn,
+                selected ? genderStyles.btnActive : genderStyles.btnIdle,
+                { opacity: pressed ? 0.88 : 1 },
               ]}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
             >
-              {opt.label}
-            </Text>
-          </Pressable>
-        );
-      })}
+              <Text
+                style={[
+                  genderStyles.btnText,
+                  selected
+                    ? genderStyles.btnTextActive
+                    : genderStyles.btnTextIdle,
+                ]}
+              >
+                {opt.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
@@ -307,6 +329,14 @@ const fieldStyles = StyleSheet.create({
   label: {
     fontSize: 14,
     color: SongUi.textSecondary,
+    marginBottom: 8,
+  },
+});
+
+const selectHintStyles = StyleSheet.create({
+  hint: {
+    fontSize: 12,
+    color: SongUi.textMuted,
     marginBottom: 8,
   },
 });

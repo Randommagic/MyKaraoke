@@ -29,7 +29,11 @@ function sungDateToIso(ymd: string): string | null {
 
 export function mapStorageSongToCardModel(song: Song): SongCardModel {
   const primaryYmd = getPrimarySungDate(song.sungDates);
-  const transpose = Math.max(-12, Math.min(12, song.transposeSemitones));
+  // 미정(null)은 배지를 표시하지 않는다. 값이 있으면 ±12로 clamp.
+  const transpose =
+    song.transposeSemitones === null
+      ? null
+      : Math.max(-12, Math.min(12, song.transposeSemitones));
 
   const genderKey =
     song.genderKey === "male" || song.genderKey === "female"
@@ -42,6 +46,6 @@ export function mapStorageSongToCardModel(song: Song): SongCardModel {
     keyOffset: transpose,
     lastSungAt: sungDateToIso(primaryYmd),
     genderKey,
-    showKeyBadge: transpose !== 0,
+    showKeyBadge: transpose !== null,
   };
 }

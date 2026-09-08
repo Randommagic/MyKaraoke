@@ -53,8 +53,8 @@ export function HelpSheet({
                 artist: first.artist,
                 genderKey: first.genderKey,
                 readyStatus: readinessToDesignStatus(first.readiness),
-                keyOffset: first.transposeSemitones,
-                showKeyBadge: first.transposeSemitones !== 0,
+                keyOffset: first.transposeSemitones ?? 0,
+                showKeyBadge: first.transposeSemitones !== null,
               }
             : undefined,
         );

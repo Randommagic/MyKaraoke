@@ -215,7 +215,7 @@ export function songFromTjChartItem(item: TjTopChartSongItem): Song {
     sungDates: [],
     readiness: "none",
     genderKey: "unset",
-    transposeSemitones: 0,
+    transposeSemitones: null,
     importSource: "tj",
   };
 }

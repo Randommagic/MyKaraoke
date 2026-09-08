@@ -23,6 +23,7 @@ export const UI_STRINGS = {
   },
   key: {
     original: "원키",
+    unset: "미정",
   },
   sungRecency: {
     today: "오늘",

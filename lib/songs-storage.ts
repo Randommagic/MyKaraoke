@@ -63,8 +63,11 @@ export type Song = {
   /** 연습·완창 준비도 */
   readiness: SongReadiness;
   genderKey: SongGenderKey;
-  /** 반음 단위: 양수면 키 업, 음수면 키 다운 */
-  transposeSemitones: number;
+  /**
+   * 반음 단위: 양수면 키 업, 음수면 키 다운, 0이면 원키.
+   * `null`이면 아직 정하지 않음(미정).
+   */
+  transposeSemitones: number | null;
   /** 추가·가져오기 경로 */
   importSource: SongImportSource;
 };
@@ -98,7 +101,7 @@ export function createSongFromYoutubeImport(
     sungDates: [],
     readiness: "none",
     genderKey: "unset",
-    transposeSemitones: 0,
+    transposeSemitones: null,
     importSource: "youtube",
   };
 }
@@ -111,6 +114,17 @@ function normalizeImportSource(value: unknown): SongImportSource {
 function normalizeGender(value: unknown): SongGenderKey {
   if (value === "male" || value === "female" || value === "unset") return value;
   return "unset";
+}
+
+/**
+ * 음정 정규화. 숫자면 ±12로 clamp 후 정수화(기존 데이터의 0은 그대로 원키 유지),
+ * 숫자가 아니면(신규 곡 등) `null`(미정).
+ */
+function normalizeTranspose(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.max(-12, Math.min(12, Math.round(value)));
+  }
+  return null;
 }
 
 function normalizeReadiness(value: unknown): SongReadiness {
@@ -284,10 +298,7 @@ export function parseSongsFromUnknown(parsed: unknown): Song[] {
           (row as Record<string, unknown>).readiness,
         ),
         genderKey: normalizeGender(row.genderKey),
-        transposeSemitones:
-          typeof row.transposeSemitones === "number"
-            ? Math.max(-12, Math.min(12, Math.round(row.transposeSemitones)))
-            : 0,
+        transposeSemitones: normalizeTranspose(row.transposeSemitones),
         importSource,
       });
     });

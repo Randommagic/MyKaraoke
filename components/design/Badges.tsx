@@ -108,13 +108,9 @@ export function GenderBadge({ gender }: { gender: GenderBadgeKey }) {
   );
 }
 
-export function KeyBadge({ offset }: { offset: number }) {
-  const label =
-    offset === 0
-      ? UI_STRINGS.key.original
-      : offset > 0
-        ? `+${offset}`
-        : `${offset}`;
+export function KeyBadge({ offset }: { offset: number | null }) {
+  if (offset === null) return null;
+  const label = offset >= 0 ? `+${offset}` : `${offset}`;
   return (
     <BadgeChip
       label={`♪ ${label}`}

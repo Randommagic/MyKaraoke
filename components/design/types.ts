@@ -5,7 +5,7 @@ export type GenderBadgeKey = "male" | "female";
 export interface SongCardModel {
   title: string;
   readyStatus: ReadyStatus;
-  keyOffset: number;
+  keyOffset: number | null;
   lastSungAt: string | null;
   genderKey: GenderBadgeKey | null;
   showKeyBadge: boolean;

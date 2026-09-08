@@ -161,7 +161,7 @@ export default function HomeScreen() {
   const [draftMemo, setDraftMemo] = useState("");
   const [draftGender, setDraftGender] = useState<SongGenderKey>("unset");
   const [draftReadiness, setDraftReadiness] = useState<SongReadiness>("none");
-  const [draftTranspose, setDraftTranspose] = useState(0);
+  const [draftTranspose, setDraftTranspose] = useState<number | null>(null);
   const [readinessFilter, setReadinessFilter] =
     useState<ReadinessFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -272,7 +272,7 @@ export default function HomeScreen() {
     setDraftMemo("");
     setDraftGender("unset");
     setDraftReadiness("none");
-    setDraftTranspose(0);
+    setDraftTranspose(null);
   }, []);
 
   const closeModal = useCallback(() => {
@@ -283,7 +283,10 @@ export default function HomeScreen() {
     if (modalSongId !== CREATE_MODAL_ID) return;
     const title = draftTitle.trim();
     if (!title) return;
-    const transpose = Math.max(-12, Math.min(12, draftTranspose));
+    const transpose =
+      draftTranspose === null
+        ? null
+        : Math.max(-12, Math.min(12, draftTranspose));
     const artist = draftArtist.trim();
     const tjNumber = sanitizeKaraokeDigits(draftTjNumber);
     const kyNumber = sanitizeKaraokeDigits(draftKyNumber);
@@ -527,8 +530,8 @@ export default function HomeScreen() {
                       artist: songs[0].artist,
                       genderKey: songs[0].genderKey,
                       readyStatus: readinessToDesignStatus(songs[0].readiness),
-                      keyOffset: songs[0].transposeSemitones,
-                      showKeyBadge: songs[0].transposeSemitones !== 0,
+                      keyOffset: songs[0].transposeSemitones ?? 0,
+                      showKeyBadge: songs[0].transposeSemitones !== null,
                     }
                   : undefined
               }

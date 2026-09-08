@@ -79,7 +79,7 @@ export default function SongDetailScreen() {
   memoRef.current = memo;
   const [genderKey, setGenderKey] = useState<SongGenderKey>("unset");
   const [readiness, setReadiness] = useState<SongReadiness>("none");
-  const [transpose, setTranspose] = useState(0);
+  const [transpose, setTranspose] = useState<number | null>(null);
   const [sungDates, setSungDates] = useState<string[]>([]);
 
   const applySong = useCallback((s: Song) => {
@@ -200,8 +200,9 @@ export default function SongDetailScreen() {
   );
 
   const saveTranspose = useCallback(
-    async (next: number) => {
-      const clamped = Math.max(-12, Math.min(12, next));
+    async (next: number | null) => {
+      const clamped =
+        next === null ? null : Math.max(-12, Math.min(12, next));
       setTranspose(clamped);
       const ok = await patchSong({ transposeSemitones: clamped });
       if (ok) logDebug(`[song/${songId}] 음정 저장`, "info");
