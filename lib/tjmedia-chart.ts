@@ -109,7 +109,7 @@ export function formatTjChartPeriodSubtitle(
   if (strType == null) {
     return `${period} 전체 인기차트 100위`;
   }
-  return `${period} · ${category} 인기차트 100위`;
+  return `${period} ${category} 인기차트 100위`;
 }
 
 const tjSessionCacheByKey = new Map<string, TjChartSessionCache>();

@@ -108,7 +108,7 @@ export default function BackupScreen() {
           뒤 불러올 수 있습니다.
         </ThemedText>
 
-        <ThemedText style={styles.sectionLabel}>보내기</ThemedText>
+        <ThemedText style={styles.sectionLabel}>백업하기</ThemedText>
         <Pressable
           onPress={() => void onExport()}
           disabled={busy}
@@ -117,12 +117,12 @@ export default function BackupScreen() {
             { opacity: exporting ? 0.55 : pressed ? 0.85 : 1 },
           ]}
           accessibilityRole="button"
-          accessibilityLabel="보내기"
+          accessibilityLabel="백업하기"
         >
           {exporting ? (
             <ActivityIndicator color={DesignColors.accent} />
           ) : (
-            <ThemedText style={styles.actionBtnText}>보내기</ThemedText>
+            <ThemedText style={styles.actionBtnText}>백업하기</ThemedText>
           )}
         </Pressable>
 
